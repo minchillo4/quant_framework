@@ -1,0 +1,342 @@
+# config/assets/crypto_universe.yaml
+---
+# BTC-only canonical asset definitions
+# New structure: canonical base assets with multi-exchange and multi-market type support
+
+symbols:
+  - canonical: "BTC"
+    active: true
+    instrument_type: "perpetual_futures"
+    default_timeframes:
+      - "5m" 
+      - "15m"
+      - "1h"
+      - "4h"
+      - "1d"
+    
+    exchanges:
+      # =============================================================================
+      # Binance USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "BTC/USDT:USDT"
+          open_interest: "BTC/USDT:USDT"
+          funding_rate: "BTC/USDT:USDT"
+        min_lot_size: 0.001
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Binance COIN-M Futures (Inverse Perpetual) 
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "inverse_perpetual"
+        settlement_currency: "BTC"
+        symbols:
+          ohlc: "BTC/USD:BTC"
+          open_interest: "BTC/USD:BTC"
+          funding_rate: "BTCUSD"
+        min_lot_size: 1
+        tick_size: 0.1
+
+
+      # =============================================================================
+      # Binance USDⓈ-M Futures (Linear Perpetual) - USDC Settled
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDC"  # NEW SETTLEMENT
+        symbols:
+          ohlc: "BTC/USDC:USDC"
+          open_interest: "BTC/USDC:USDC"
+          funding_rate: "BTC/USDC:USDC"
+        min_lot_size: 0.001
+        tick_size: 0.01
+
+      # =============================================================================
+      # Binance USDⓈ-M Futures (Linear Perpetual) - BUSD Settled
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "linear_perpetual"
+        settlement_currency: "BUSD"
+        symbols:
+          ohlc: "BTC/BUSD:BUSD"
+          open_interest: "BTC/BUSD:BUSD"
+          funding_rate: "BTC/BUSD:BUSD"
+        min_lot_size: 0.001
+        tick_size: 0.01
+
+      # =============================================================================
+      # Bybit USDⓈ-M Futures (Linear Perpetual) - USDC Settled
+      # =============================================================================
+      - exchange: "bybit"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDC"  # NEW SETTLEMENT
+        symbols:
+          ohlc: "BTC/USDC:USDC"
+          open_interest: "BTC/USDC:USDC"
+          funding_rate: "BTC/USDC:USDC"
+        min_lot_size: 0.001
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Bybit USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "bybit"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "BTC/USDT:USDT"
+          open_interest: "BTC/USDT:USDT"
+          funding_rate: "BTC/USDT:USDT"
+        min_lot_size: 0.001
+        tick_size: 0.01
+      # =============================================================================
+      # Bybit COIN-M Futures (Inverse Perpetual) 
+      # =============================================================================
+      - exchange: "bybit"
+        market_type: "inverse_perpetual"
+        settlement_currency: "BTC"
+        symbols:
+          ohlc: "BTC/USD:BTC"
+          open_interest: "BTC/USD:BTC"
+          funding_rate: "BTC/USD:BTC"
+        min_lot_size: 0.001
+        tick_size: 0.1
+      
+      # =============================================================================
+      # Gate.io  USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "gateio"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "BTC/USDT:USDT"
+          open_interest: "BTC/USDT:USDT"
+          funding_rate: "BTC/USDT:USDT"
+        min_lot_size: 0.0001
+        tick_size: 0.1
+      # =============================================================================
+      # Huobi  USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "huobi"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "BTC/USDT:USDT"
+          open_interest: "BTC/USDT:USDT"
+          funding_rate: "BTC/USDT:USDT"
+        min_lot_size: 0.001
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Huobi COIN-M Futures (Inverse Perpetual) 
+      # =============================================================================
+      - exchange: "huobi"
+        market_type: "inverse_perpetual"
+        settlement_currency: "BTC"
+        symbols:
+          ohlc: "BTC/USD:BTC"
+          open_interest: "BTC/USD:BTC"
+          funding_rate: "BTC/USD:BTC"
+        min_lot_size: 0.001
+        tick_size: 0.1
+
+      # =============================================================================
+      # Bitget Linear Perpetual 
+      # =============================================================================
+
+      - exchange: "bitget"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "BTC/USDT:USDT"
+          open_interest: "BTCUSDT"  # Bitget symbol format
+          funding_rate: "BTC/USDT:USDT"
+        min_lot_size: 0.001
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Bitget Inverse Perpetual  
+      # =============================================================================
+      - exchange: "bitget"
+        market_type: "inverse_perpetual"
+        settlement_currency: "BTC"
+        symbols:
+          ohlc: "BTC/USD:BTC"
+          open_interest: "BTCUSD"  # Bitget symbol format
+          funding_rate: "BTC/USD:BTC"
+        min_lot_size: 0.001
+        tick_size: 0.1
+
+  # =============================================================================
+  # ETH - Ethereum
+  # =============================================================================
+  - canonical: "ETH"
+    active: true
+    instrument_type: "perpetual_futures"
+    default_timeframes:
+      - "5m" 
+      - "15m"
+      - "1h"
+      - "4h"
+      - "1d"
+    
+    exchanges:
+      # =============================================================================
+      # Binance USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "ETH/USDT:USDT"
+          open_interest: "ETH/USDT:USDT"
+          funding_rate: "ETH/USDT:USDT"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Binance COIN-M Futures (Inverse Perpetual) 
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "inverse_perpetual"
+        settlement_currency: "ETH"
+        symbols:
+          ohlc: "ETH/USD:ETH"
+          open_interest: "ETH/USD:ETH"
+          funding_rate: "ETHUSD"
+        min_lot_size: 1
+        tick_size: 0.01
+
+      # =============================================================================
+      # Binance USDⓈ-M Futures (Linear Perpetual) - USDC Settled
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDC"
+        symbols:
+          ohlc: "ETH/USDC:USDC"
+          open_interest: "ETH/USDC:USDC"
+          funding_rate: "ETH/USDC:USDC"
+        min_lot_size: 0.01
+        tick_size: 0.01
+
+      # =============================================================================
+      # Binance USDⓈ-M Futures (Linear Perpetual) - BUSD Settled
+      # =============================================================================
+      - exchange: "binance"
+        market_type: "linear_perpetual"
+        settlement_currency: "BUSD"
+        symbols:
+          ohlc: "ETH/BUSD:BUSD"
+          open_interest: "ETH/BUSD:BUSD"
+          funding_rate: "ETH/BUSD:BUSD"
+        min_lot_size: 0.01
+        tick_size: 0.01
+
+      # =============================================================================
+      # Bybit USDⓈ-M Futures (Linear Perpetual) - USDC Settled
+      # =============================================================================
+      - exchange: "bybit"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDC"
+        symbols:
+          ohlc: "ETH/USDC:USDC"
+          open_interest: "ETH/USDC:USDC"
+          funding_rate: "ETH/USDC:USDC"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Bybit USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "bybit"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "ETH/USDT:USDT"
+          open_interest: "ETH/USDT:USDT"
+          funding_rate: "ETH/USDT:USDT"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Bybit COIN-M Futures (Inverse Perpetual) 
+      # =============================================================================
+      - exchange: "bybit"
+        market_type: "inverse_perpetual"
+        settlement_currency: "ETH"
+        symbols:
+          ohlc: "ETH/USD:ETH"
+          open_interest: "ETH/USD:ETH"
+          funding_rate: "ETH/USD:ETH"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Gate.io  USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "gateio"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "ETH/USDT:USDT"
+          open_interest: "ETH/USDT:USDT"
+          funding_rate: "ETH/USDT:USDT"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Huobi  USDⓈ-M Futures (Linear Perpetual) - USDT Settled
+      # =============================================================================
+      - exchange: "huobi"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "ETH/USDT:USDT"
+          open_interest: "ETH/USDT:USDT"
+          funding_rate: "ETH/USDT:USDT"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Huobi COIN-M Futures (Inverse Perpetual) 
+      # =============================================================================
+      - exchange: "huobi"
+        market_type: "inverse_perpetual"
+        settlement_currency: "ETH"
+        symbols:
+          ohlc: "ETH/USD:ETH"
+          open_interest: "ETH/USD:ETH"
+          funding_rate: "ETH/USD:ETH"
+        min_lot_size: 0.01
+        tick_size: 0.01
+
+      # =============================================================================
+      # Bitget Linear Perpetual 
+      # =============================================================================
+      - exchange: "bitget"
+        market_type: "linear_perpetual"
+        settlement_currency: "USDT"
+        symbols:
+          ohlc: "ETH/USDT:USDT"
+          open_interest: "ETHUSDT"
+          funding_rate: "ETH/USDT:USDT"
+        min_lot_size: 0.01
+        tick_size: 0.01
+      
+      # =============================================================================
+      # Bitget Inverse Perpetual  
+      # =============================================================================
+      - exchange: "bitget"
+        market_type: "inverse_perpetual"
+        settlement_currency: "ETH"
+        symbols:
+          ohlc: "ETH/USD:ETH"
+          open_interest: "ETHUSD"
+          funding_rate: "ETH/USD:ETH"
+        min_lot_size: 0.01
+        tick_size: 0.01

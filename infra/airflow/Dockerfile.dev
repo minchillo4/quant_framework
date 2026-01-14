@@ -1,0 +1,56 @@
+FROM apache/airflow:2.9.2-python3.11
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    liblz4-dev \
+    liblz4-1 \
+    curl \
+    netcat-openbsd \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch to airflow user for Python package installation
+USER airflow
+
+# Install additional Python packages as airflow user
+RUN pip install --no-cache-dir \
+    ccxt \
+    asyncpg \
+    sqlalchemy \
+    psycopg2-binary \
+    redis \
+    pandas \
+    numpy \
+    pyyaml \
+    python-dotenv \
+    requests \
+    httpx \
+    lz4 \
+    cramjam \
+    pyarrow \
+    pendulum \
+    boto3 \
+    python-dateutil
+
+# Copy entrypoint script
+COPY --chown=airflow:root infra/airflow/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Copy quant_framework to container
+COPY --chown=airflow:root ./src/quant_framework /opt/airflow/src/quant_framework
+
+# Install quant_framework if it has setup.py, otherwise add to Python path
+RUN if [ -f /opt/airflow/src/quant_framework/setup.py ]; then \
+        pip install -e /opt/airflow/src/quant_framework; \
+    elif [ -f /opt/airflow/src/quant_framework/pyproject.toml ]; then \
+        pip install -e /opt/airflow/src/quant_framework; \
+    else \
+        echo "/opt/airflow/src/quant_framework" > /home/airflow/.local/lib/python3.11/site-packages/quant_framework.pth; \
+    fi
+
+# Ensure PYTHONPATH includes quant_framework
+ENV PYTHONPATH="/opt/airflow/src/quant_framework:${PYTHONPATH}"

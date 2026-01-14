@@ -1,0 +1,53 @@
+FROM apache/airflow:2.9.2-python3.11
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    curl \
+    netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/*
+
+# Add airflow to docker group for potential Docker operations
+RUN groupadd -g 128 docker || true && \
+    usermod -aG docker airflow
+
+# Create directories
+RUN mkdir -p /opt/airflow/dags /opt/airflow/logs /opt/airflow/plugins /opt/airflow/dags/generated
+RUN chown -R airflow:0 /opt/airflow/dags /opt/airflow/logs /opt/airflow/plugins
+RUN chmod -R 775 /opt/airflow/dags/generated
+
+USER airflow
+WORKDIR /opt/airflow
+
+# Copy dependencies
+COPY --chown=airflow:airflow pyproject.toml README.md ./
+RUN pip install --no-cache-dir -e .
+
+# Copy application code (PRODUCTION ONLY)
+COPY --chown=airflow:airflow src ./src/
+COPY --chown=airflow:airflow scripts ./scripts/
+COPY --chown=airflow:airflow infra/airflow/dags ./dags/
+COPY --chown=airflow:airflow infra/airflow/plugins ./plugins/
+
+# Copy init scripts
+COPY --chown=airflow:airflow infra/airflow/scripts/init_dags.sh /init_dags.sh
+COPY --chown=airflow:airflow infra/airflow/scripts/entrypoint.sh /entrypoint.sh
+
+USER root
+RUN chmod +x /init_dags.sh /entrypoint.sh
+
+# Install docker for production operations
+RUN curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose && \
+    chmod +x /usr/local/bin/docker-compose
+
+USER airflow
+
+# Set Python path
+ENV PYTHONPATH="/opt/airflow:/opt/airflow/src:/app:$PYTHONPATH"
+ENV AIRFLOW_HOME=/opt/airflow
+ENV CONFIG_PATH="/app/config"
+
+ENTRYPOINT ["/entrypoint.sh"]

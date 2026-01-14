@@ -1,0 +1,17 @@
+# Prod: Strict, secure, scalable
+ccxt_mock: false
+log_level: INFO
+universe_override: universe.yaml  # Full
+max_concurrent: auto  # Based on k8s resources
+rate_limits_strict: true
+execution_mode: live
+secrets_source: vault  # Or KMS
+audit_logging: true  # Immutable logs
+kill_switch_enabled: true  # Redis flags for pauses
+
+# Kafka overrides: Stricter limits for prod
+kafka:
+  producer_max_request_size: 4194304  # 4MB (tighter than 5MB for high volume)
+  fetch_max_bytes: 4194304  # 4MB fetch
+  retries: 5  # More retries in prod
+  linger_ms: 50  # Faster batching

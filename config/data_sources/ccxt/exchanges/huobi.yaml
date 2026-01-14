@@ -1,0 +1,70 @@
+# config/data_sources/ccxt/exchanges/huobi.yaml
+---
+# Huobi-specific configuration with market type support
+exchange: "huobi"
+data_source_type: "ccxt"
+
+# Market Type Specific Configurations
+market_types:
+  spot:
+    api_base_url: "https://api.huobi.pro"
+    ws_base_url: "wss://api.huobi.pro/ws"
+    ccxt_class: "huobi"
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: false
+      funding_rate: false
+
+  linear_perpetual:
+    api_base_url: "https://api.hbdm.com"
+    ws_base_url: "wss://api.hbdm.com/swap-ws"
+    ccxt_class: "huobi"
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    # Huobi-specific limits
+    batch_limits:
+      ohlc: 2000
+      open_interest: 200
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+  inverse_perpetual:
+    api_base_url: "https://api.hbdm.com"
+    ws_base_url: "wss://api.hbdm.com/swap-ws"
+    ccxt_class: "huobi"
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    # Different limits for inverse
+    batch_limits:
+      ohlc: 2000
+      open_interest: 200
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+# Exchange-wide settings
+rest_rate_limit: 800
+retry:
+  max_retries: 5
+  delay: 2.0
+
+# SSL configuration for Docker
+ssl_verify: false
+timeout: 30000

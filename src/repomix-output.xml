@@ -1,0 +1,5350 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+mnemo_quant/
+  config/
+    asset_coverage.py
+  data_sources/
+    ccxt/
+      __init__.py
+    __init__.py
+  db/
+    scripts/
+      fetch_oi_latest.sql
+    __init__.py
+    database.py
+  indicators/
+    __init__.py
+  models/
+    __init__.py
+    common.py
+    enums.py
+    market.py
+  pipelines/
+    aggregation/
+      aggregation_consumer.py
+      aggregation_engine.py
+      window_manager.py
+    base/
+      __init__.py
+      circuit_breaker.py
+      metrics.py
+      publishing.py
+    consumers/
+      __init__.py
+      batch_processor.py
+      handler_registry.py
+      storage_consumer.py
+    extraction/
+      ccxt/
+        __init__.py
+        pipeline_factory.py
+      __init__.py
+    orchestration/
+      core/
+        orchestrator.py
+      scripts/
+        __init__.py
+        backfill_runner.py
+        incremental_runner.py
+        service_runner.py
+      services/
+        incremental_service.py
+      coin_alyze_bootstrap.py
+      download_history.py
+      generic_orchestrator.py
+      incremental_service.py
+    producers/
+      __init__.py
+    storage/
+      oi_storage.py
+    __init__.py
+  risk/
+    __init__.py
+  strategies/
+    __init__.py
+  utils/
+    __init__.py
+    ccxt_utils.py
+    config_loader.py
+    dags_helpers.py
+    retry.py
+    symbols_utils.py
+    timezone_utils.py
+  __init__.py
+mnemo_quant_api/
+  health.py
+  main.py
+quant_framework/
+  infrastructure/
+    config/
+      __init__.py
+    database/
+      __init__.py
+    __init__.py
+  ingestion/
+    adapters/
+      ccxt_plugin/
+        __init__.py
+        ohlcv_adapter.py
+        open_interest_adapter.py
+      coinalyze_plugin/
+        __init__.py
+        base.py
+        client.py
+        error_mapper.py
+        exceptions.py
+        key_rotator.py
+        mappers.py
+        ohlcv_adapter.py
+        open_interest_adapter.py
+        response_validator.py
+        retry_handler.py
+        symbol_registry.py
+      __init__.py
+      base.py
+    connectors/
+      __init__.py
+      rest.py
+    factories/
+      adapter_factory.py
+      preprocessor_factory.py
+    models/
+      __init__.py
+      enums.py
+    orchestration/
+      data_fetcher.py
+    pipelines/
+      __init__.py
+    ports/
+      __init__.py
+      data_ports.py
+    preprocessing/
+      base.py
+      providers.py
+    symbol_resolution/
+      resolver.py
+    __init__.py
+    service.py
+  shared/
+    enums/
+      __init__.py
+    models/
+      __init__.py
+      enums.py
+      instruments.py
+    __init__.py
+  __init__.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="mnemo_quant/config/asset_coverage.py">
+"""
+Asset Coverage Manager - Multi-Settlement and Multi-Source Support.
+
+Provides utilities for managing asset coverage across multiple data sources
+(CCXT, CoinAlyze) with support for multiple settlement currencies.
+
+Key Features:
+- Enumerate all symbol/exchange/settlement combinations
+- Track data source availability
+- Runtime symbol verification
+- Coverage gap detection
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class DataSource(str, Enum)
+⋮----
+"""Supported data sources."""
+CCXT = "ccxt"
+COINALYZE = "coinalyze"
+YAHOO = "yahoo"  # Future
+⋮----
+@dataclass
+class AssetCombination
+⋮----
+"""
+    Represents a unique asset/exchange/settlement combination.
+    
+    This is the atomic unit for data fetching - each combination
+    represents a distinct market that needs to be fetched.
+    """
+canonical: str  # e.g., "BTC"
+exchange: str  # e.g., "binance"
+market_type: str  # e.g., "linear_perpetual"
+settlement_currency: str  # e.g., "USDT"
+⋮----
+# Data source availability
+available_in_ccxt: bool = True
+available_in_coinalyze: bool = True
+⋮----
+# Runtime verification
+verified: bool = False
+last_verified: datetime | None = None
+verification_error: str | None = None
+⋮----
+def __hash__(self)
+⋮----
+def __eq__(self, other)
+⋮----
+def to_key(self) -> str
+⋮----
+"""Generate unique key for this combination."""
+⋮----
+class AssetCoverageManager
+⋮----
+"""
+    Manages asset coverage across multiple data sources and settlements.
+    
+    Usage:
+        manager = AssetCoverageManager()
+        
+        # Get all combinations for CCXT fetching
+        ccxt_combos = manager.get_combinations_for_source(DataSource.CCXT)
+        
+        # Get all settlements for a specific symbol/exchange
+        settlements = manager.get_settlements("BTC", "binance", "linear_perpetual")
+    """
+⋮----
+def __init__(self, config_path: str = 'config/assets/crypto_universe.yaml')
+⋮----
+"""
+        Get all asset combinations for a data source.
+        
+        Args:
+            source: Data source (CCXT, CoinAlyze)
+            exchange: Optional filter by exchange
+            canonical: Optional filter by canonical symbol
+            
+        Returns:
+            List of AssetCombination objects representing all fetchable markets
+            
+        Example:
+            # Get all CCXT combinations for Binance
+            combos = manager.get_combinations_for_source(
+                DataSource.CCXT,
+                exchange="binance"
+            )
+            # Returns: [
+            #   AssetCombination(BTC, binance, linear_perpetual, USDT),
+            #   AssetCombination(BTC, binance, linear_perpetual, USDC),
+            #   AssetCombination(BTC, binance, inverse_perpetual, BTC),
+            #   AssetCombination(ETH, binance, linear_perpetual, USDT),
+            #   ...
+            # ]
+        """
+combinations = []
+⋮----
+# Get all active symbols
+symbols = self.registry.symbols
+⋮----
+# Filter by canonical if specified
+⋮----
+# Iterate through all exchange configurations
+⋮----
+# Filter by exchange if specified
+⋮----
+# Create combination for this specific settlement
+combo = AssetCombination(
+⋮----
+"""
+        Get all settlement currencies for a symbol on an exchange.
+        
+        Args:
+            canonical: Canonical symbol (e.g., "BTC")
+            exchange: Exchange name
+            market_type: Optional market type filter
+            
+        Returns:
+            List of settlement currencies (e.g., ["USDT", "USDC", "BTC"])
+            
+        Example:
+            settlements = manager.get_settlements("BTC", "binance", "linear_perpetual")
+            # Returns: ["USDT", "USDC"]
+        """
+⋮----
+"""
+        Get all settlements grouped by canonical symbol for an exchange.
+        
+        Returns:
+            Dict mapping canonical -> list of settlements
+            
+        Example:
+            settlements = manager.get_all_settlements_for_exchange("binance")
+            # Returns: {
+            #   "BTC": ["USDT", "USDC", "BTC"],
+            #   "ETH": ["USDT", "USDC", "ETH"]
+            # }
+        """
+result = {}
+⋮----
+active_symbols = self.registry.get_active_symbols(
+⋮----
+settlements = self.get_settlements(
+⋮----
+"""
+        Verify that a combination is actually available on the exchange.
+        
+        Args:
+            combo: AssetCombination to verify
+            exchange_instance: Connected exchange instance
+            
+        Returns:
+            True if available, False otherwise
+            
+        Updates combo.verified, combo.last_verified, combo.verification_error
+        """
+⋮----
+# Try to resolve the symbol
+⋮----
+symbol = self.registry.get_symbol(
+⋮----
+# Check if symbol exists in exchange markets
+⋮----
+def get_coverage_summary(self) -> dict
+⋮----
+"""
+        Get summary of asset coverage across all sources.
+        
+        Returns:
+            Dict with coverage statistics
+        """
+ccxt_combos = self.get_combinations_for_source(DataSource.CCXT)
+⋮----
+# Group by exchange
+by_exchange = {}
+⋮----
+# Count by symbol
+⋮----
+# Count by settlement
+</file>
+
+<file path="mnemo_quant/data_sources/ccxt/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/data_sources/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/db/scripts/fetch_oi_latest.sql">
+SELECT 
+    exchange,
+    settlement_currency,
+    COUNT(*) as records,
+    MIN(ts) as earliest,
+    MAX(ts) as latest
+FROM market.open_interest
+WHERE canonical_symbol = 'BTC' 
+  AND timeframe = '5m'
+GROUP BY exchange, settlement_currency
+ORDER BY exchange, settlement_currency;
+</file>
+
+<file path="mnemo_quant/db/__init__.py">
+# src/mnemo_quant/db/__init__.py
+⋮----
+__all__ = ["Database"]
+</file>
+
+<file path="mnemo_quant/db/database.py">
+"""
+Enhanced database module with generic upsert for any Pydantic model.
+"""
+⋮----
+import json  # ← ADD THIS LINE
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class Database
+⋮----
+"""
+    Enhanced TimescaleDB client with generic model-based operations.
+    """
+⋮----
+def __init__(self)
+⋮----
+async def connect(self) -> None
+⋮----
+"""Initialize connection pool."""
+⋮----
+async def disconnect(self) -> None
+⋮----
+"""Close connection pool."""
+⋮----
+def _normalize_dsn(self, dsn: str) -> str
+⋮----
+"""
+            Normalize DSN to asyncpg-compatible format.
+            Handles SQLAlchemy-style DSNs (postgresql+asyncpg://) and others.
+            """
+# Remove SQLAlchemy driver specification
+normalized = re.sub(r'^postgresql\+[^:]+://', 'postgresql://', dsn)
+⋮----
+"""
+        Generic upsert for any Pydantic model batch.
+        
+        Args:
+            records: List of Pydantic model instances
+            table: Target table name (e.g., 'market.ohlc')
+            conflict_keys: Columns for ON CONFLICT clause
+            data_type: Type of data for logging/metrics
+            mode: 'consumer' or 'backfill'
+        
+        Returns:
+            Number of rows affected
+        """
+⋮----
+# Get model fields from first record
+sample_record = records[0]
+model_fields = list(sample_record.model_dump().keys())
+⋮----
+# Build SQL dynamically
+columns_str = ', '.join(model_fields)
+placeholders_template = ', '.join([f'${i+1}' for i in range(len(model_fields))])
+⋮----
+# Build ON CONFLICT clause
+conflict_clause = ', '.join(conflict_keys)
+update_columns = [col for col in model_fields if col not in conflict_keys]
+update_set = ', '.join([f'{col} = EXCLUDED.{col}' for col in update_columns])
+⋮----
+query = f"""
+⋮----
+# Prepare values from Pydantic models
+values_list = []
+⋮----
+record_dict = record.model_dump()
+values = tuple(record_dict[field] for field in model_fields)
+⋮----
+# Execute batch insert
+result = await conn.executemany(query, values_list)
+⋮----
+# executemany returns command tag like "INSERT 0 500"
+# We approximate affected rows as len(records)
+affected = len(values_list)
+⋮----
+"""
+        Update metadata table with extraction/ingestion progress.
+        
+        Args:
+            data_type: Type of data ('ohlc', 'open_interest', etc.)
+            symbol: Canonical symbol
+            interval: Timeframe/interval
+            earliest_ts: Earliest timestamp in batch
+            latest_ts: Latest timestamp in batch
+            mode: 'extraction' or 'ingestion'
+        
+        Returns:
+            True if successful, False otherwise
+        """
+⋮----
+# Determine which timestamp field to update
+⋮----
+ts_field = 'last_incremental_at'
+⋮----
+ts_field = 'last_backfill_at'
+⋮----
+# Upsert metadata
+⋮----
+"""
+        Update metadata with extended tracking information.
+        
+        Args:
+            mode: 'extraction' or 'backfill' or 'incremental'
+            backfill_status: 'pending', 'in_progress', 'complete', 'failed'
+            backfill_progress: Progress tracking JSON
+            records_count: Total records stored
+        """
+⋮----
+timestamp_field = {
+⋮----
+"""Get backfill progress for resumption."""
+⋮----
+query = """
+⋮----
+result = await conn.fetchrow(
+⋮----
+"""Get last ingested timestamp for gap detection."""
+⋮----
+# Map data_type to table
+table_map = {
+⋮----
+table = table_map.get(data_type)
+⋮----
+where_clause = "WHERE canonical_symbol = $1"
+params = [canonical_symbol]
+⋮----
+result = await conn.fetchrow(query, *params)
+⋮----
+"""Get count of records for a symbol/timeframe."""
+</file>
+
+<file path="mnemo_quant/indicators/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/models/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/models/common.py">
+class TradingInterval(str, Enum)
+⋮----
+"""Supported trading intervals matching CCXT format."""
+⋮----
+ONE_MINUTE = "1m"
+FIVE_MINUTES = "5m"
+FIFTEEN_MINUTES = "15m"
+THIRTY_MINUTES = "30m"
+ONE_HOUR = "1h"
+FOUR_HOURS = "4h"
+ONE_DAY = "1d"
+ONE_WEEK = "1w"
+⋮----
+class AssetType(str, Enum)
+⋮----
+"""Asset classification types."""
+⋮----
+CRYPTO = "crypto"
+EQUITY = "equity"
+FOREX = "forex"
+COMMODITY = "commodity"
+INDEX = "index"
+⋮----
+class OrderSide(str, Enum)
+⋮----
+"""Order side types."""
+⋮----
+BUY = "buy"
+SELL = "sell"
+⋮----
+class OrderType(str, Enum)
+⋮----
+"""Order types."""
+⋮----
+MARKET = "market"
+LIMIT = "limit"
+STOP = "stop"
+STOP_LIMIT = "stop_limit"
+⋮----
+class BaseTimeSeriesModel(BaseModel)
+⋮----
+"""Base model for all time-series data with common timestamp handling."""
+⋮----
+symbol: str = Field(..., description="Trading pair symbol in CCXT format")
+exchange: str = Field(..., description="Exchange name")
+interval: str = Field(..., description="Time interval")
+timestamp: datetime = Field(..., description="Data timestamp in UTC")
+⋮----
+@field_validator("timestamp")
+@classmethod
+    def validate_timestamp(cls, v: datetime) -> datetime
+⋮----
+"""Ensure timestamp is timezone-aware and in UTC."""
+⋮----
+# Assume naive datetime is UTC
+⋮----
+# Convert to UTC if not already
+⋮----
+class Config
+⋮----
+from_attributes = True
+⋮----
+class DataSource(str, Enum)
+⋮----
+"""Supported data sources."""
+⋮----
+CCXT = "ccxt"
+YAHOO_FINANCE = "yahoo"
+ALPHA_VANTAGE = "alpha_vantage"
+POLYGON = "polygon"
+</file>
+
+<file path="mnemo_quant/models/enums.py">
+# models/enums.py
+⋮----
+class Exchange(str, Enum)
+⋮----
+"""CORE: Trading venue identifiers mapped to CCXT classes"""
+BINANCE = "binance"
+BINANCEUSDM = "binanceusdm"      # USDⓈ-M Futures
+BINANCECOINM = "binancecoinm"    # COIN-M Futures
+BYBIT = "bybit"                   # Unified (spot + linear + inverse)
+GATEIO = "gateio"                 # Unified
+OKX = "okx"                       # Unified
+DERIBIT = "deribit"
+HUOBI = "huobi"                   # Options-focused
+BITGET = "bitget"
+# Multi-asset providers for testing
+INTERACTIVE_BROKERS = "interactive_brokers"
+OANDA = "oanda"
+⋮----
+@classmethod
+    def _missing_(cls, value)
+⋮----
+value_lower = value.lower()
+⋮----
+class MarketType(str, Enum)
+⋮----
+"""
+    CORE: Abstract market types that map to CCXT exchange classes.
+    Used for routing and configuration, NOT for CCXT class selection.
+    """
+SPOT = "spot"
+LINEAR_PERPETUAL = "linear_perpetual"    # USD-margined perpetuals
+INVERSE_PERPETUAL = "inverse_perpetual"  # Coin-margined perpetuals
+LINEAR_FUTURE = "linear_future"          # Dated USD-margined futures
+INVERSE_FUTURE = "inverse_future"        # Dated coin-margined futures
+OPTION = "option"
+⋮----
+class AssetClass(str, Enum)
+⋮----
+"""CORE: Asset class categories"""
+CRYPTO = "crypto"
+EQUITY = "equity"
+FX = "fx"
+FOREX = "forex"  # Alias for FX for compatibility
+COMMODITY = "commodity"
+RATES = "rates"
+INDEX = "index"
+OTHER = "other"
+⋮----
+class MarketDataType(str, Enum)
+⋮----
+"""CORE: Types of market data streams"""
+OHLC = "ohlc"
+OPEN_INTEREST = "open_interest"
+FUNDING_RATE = "funding_rate"
+LIQUIDATION = "liquidation"
+ORDERBOOK = "orderbook"
+TRADES = "trades"
+</file>
+
+<file path="mnemo_quant/models/market.py">
+# models/market.py
+"""
+Consolidated Market Data Models - Single Source of Truth.
+All models use consistent field names and validation.
+"""
+⋮----
+# UPDATED: Import all enhanced enums
+⋮----
+# CHANGED: Define Timeframe here since it's not in enums anymore
+class Timeframe(str, Enum)
+⋮----
+"""Timeframe enumeration for OHLC data."""
+ONE_MINUTE = "1m"
+FIVE_MINUTES = "5m"
+FIFTEEN_MINUTES = "15m"
+THIRTY_MINUTES = "30m"
+ONE_HOUR = "1h"
+FOUR_HOURS = "4h"
+ONE_DAY = "1d"
+ONE_WEEK = "1w"
+⋮----
+# REMOVED: CandleType = MarketDataType (alias removed completely)
+⋮----
+class OHLC(BaseModel)
+⋮----
+"""
+    Enhanced OHLC model for multi-asset platform.
+    Supports crypto, equities, FX, commodities, etc.
+    """
+# Core Identity
+canonical_symbol: str = Field(..., description="Standardized symbol (e.g., BTC/USDT, AAPL, EUR/USD)")
+exchange: Exchange = Field(..., description="Exchange/trading venue")
+⋮----
+# Asset Classification
+asset_class: AssetClass = Field(..., description="Asset class (crypto, equity, fx, commodity)")
+market_type: MarketType = Field(..., description="Market type (spot, linear_perpetual, etc.)")
+data_type: MarketDataType = Field(..., description="Data type (ohlc, open_interest, etc.)")
+timeframe: str = Field(..., description="Timeframe (e.g., 1h, 5m, 1d)")
+⋮----
+# Timestamp
+ts: datetime = Field(..., description="Candle timestamp (UTC)")
+⋮----
+# Price Data (universal across all asset classes)
+open: float = Field(..., ge=0, description="Opening price")
+high: float = Field(..., ge=0, description="Highest price")
+low: float = Field(..., ge=0, description="Lowest price")
+close: float = Field(..., ge=0, description="Closing price")
+⋮----
+# Volume Data (asset-class specific interpretations)
+volume: float | None = Field(None, ge=0, description="Trading volume (base currency, shares, lots)")
+quote_volume: float | None = Field(None, ge=0, description="Quote currency volume (crypto), Notional (fx)")
+⋮----
+# Metadata
+ingest_ts: datetime = Field(default_factory=datetime.utcnow, description="Ingestion timestamp")
+data_source: str = Field(..., description="Data source identifier")
+producer_version: str = Field(default="1.0", description="Producer version")
+⋮----
+@field_validator('exchange', 'asset_class', 'market_type', 'data_type', mode='before')
+@classmethod
+    def validate_enum_fields(cls, v)
+⋮----
+"""Convert string to lowercase for enum matching."""
+⋮----
+@field_validator('high', 'low')
+@classmethod
+    def validate_high_low(cls, v, info)
+⋮----
+"""Ensure high >= low and both are consistent with open/close."""
+values = info.data
+⋮----
+class Config
+⋮----
+use_enum_values = False
+⋮----
+class OpenInterest(BaseModel)
+⋮----
+"""
+    Open Interest data model - simplified without OHLC fields
+    """
+# Identity fields
+canonical_symbol: str = Field(..., description="Standardized symbol")
+exchange: Exchange = Field(..., description="Exchange enum")
+⋮----
+asset_class: AssetClass = Field(default=AssetClass.CRYPTO, description="Asset class")
+market_type: MarketType = Field(..., description="Market type")
+data_type: MarketDataType = Field(default=MarketDataType.OPEN_INTEREST, description="Data type")
+timeframe: str = Field(..., description="Timeframe (e.g., 5m, 1h, current)")
+⋮----
+# Settlement Currency
+settlement_currency: str | None = Field(
+⋮----
+ts: datetime = Field(..., description="Data timestamp (UTC)")
+⋮----
+# OI data
+open_interest: float = Field(..., ge=0, description="Open interest (contracts or USD)")
+open_interest_value: float | None = Field(None, ge=0, description="OI value in USD")
+⋮----
+class FundingRate(BaseModel)
+⋮----
+"""Funding rate data model."""
+⋮----
+data_type: MarketDataType = Field(default=MarketDataType.FUNDING_RATE, description="Data type")
+⋮----
+ts: datetime = Field(..., description="Funding rate timestamp")
+⋮----
+# Funding data
+funding_rate: float = Field(..., description="Funding rate (e.g., 0.0001 = 0.01%)")
+predicted_rate: float | None = Field(None, description="Predicted next funding rate")
+⋮----
+ingest_ts: datetime = Field(default_factory=datetime.utcnow)
+data_source: str = Field(...)
+producer_version: str = Field(default="1.0")
+⋮----
+# ... Liquidation model would get similar updates ...
+</file>
+
+<file path="mnemo_quant/pipelines/aggregation/aggregation_consumer.py">
+"""
+Aggregation Consumer - Kafka consumer for real-time aggregation.
+
+Consumes 5m OHLC and OI data from Kafka, buffers records in time windows,
+and produces aggregated 1h, 4h, and 1d data.
+
+Architecture:
+1. Subscribe to 5m topics (market.ohlc.*, market.oi.*)
+2. Buffer records by time window
+3. When window completes, aggregate and publish
+4. Publish to aggregated topics (market.ohlc.aggregated, market.oi.aggregated)
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class AggregationConsumer
+⋮----
+"""
+    Kafka consumer for real-time aggregation.
+    
+    Consumes 5m data, buffers by time window, aggregates when complete,
+    and publishes to aggregated topics.
+    """
+⋮----
+# Target timeframes for aggregation
+TARGET_TIMEFRAMES = ["1h", "4h", "1d"]
+⋮----
+# Kafka clients
+⋮----
+# Aggregation components
+⋮----
+# State tracking
+⋮----
+# Setup signal handlers
+⋮----
+def _handle_shutdown(self, signum, frame)
+⋮----
+"""Handle shutdown signals gracefully."""
+⋮----
+async def start(self)
+⋮----
+"""Start the aggregation consumer."""
+⋮----
+# Initialize Kafka clients
+⋮----
+# Initialize database if provided
+⋮----
+# Main consumption loop
+⋮----
+async def _initialize_kafka(self)
+⋮----
+"""Initialize Kafka consumer and producer."""
+# Consumer: Subscribe to all 5m topics
+⋮----
+# Producer: Publish aggregated data
+⋮----
+async def _consume_loop(self)
+⋮----
+"""Main consumption loop."""
+⋮----
+# Periodic aggregation check (every 60 seconds)
+last_aggregation_check = datetime.utcnow()
+aggregation_interval = 60  # seconds
+⋮----
+# Process message
+⋮----
+# Periodic aggregation check
+now = datetime.utcnow()
+⋮----
+last_aggregation_check = now
+⋮----
+# Log progress periodically
+⋮----
+# Log buffer stats
+stats = self.window_manager.get_buffer_stats()
+⋮----
+async def _process_message(self, msg)
+⋮----
+"""Process a single Kafka message."""
+topic = msg.topic
+value = msg.value
+⋮----
+# Determine data type from topic
+⋮----
+data_type = 'ohlc'
+record = self._deserialize_ohlc(value)
+⋮----
+data_type = 'oi'
+record = self._deserialize_oi(value)
+⋮----
+# Only process 5m records (skip already aggregated)
+⋮----
+# Add to window buffers for each target timeframe
+⋮----
+async def _check_and_aggregate(self)
+⋮----
+"""Check for complete windows and aggregate them."""
+current_time = datetime.utcnow()
+⋮----
+# Check OHLC windows
+complete_ohlc = self.window_manager.get_complete_windows(
+⋮----
+aggregated = self.aggregation_engine.aggregate_ohlc(records, timeframe)
+⋮----
+# Mark complete and clear buffer
+⋮----
+# Check OI windows
+complete_oi = self.window_manager.get_complete_windows(
+⋮----
+aggregated = self.aggregation_engine.aggregate_oi(records, timeframe)
+⋮----
+async def _publish_aggregated(self, record, data_type: str)
+⋮----
+"""Publish aggregated record to Kafka."""
+topic = f"market.{data_type}.aggregated"
+⋮----
+# Serialize record
+value = record.model_dump_json()
+⋮----
+def _deserialize_ohlc(self, value: str) -> OHLC | None
+⋮----
+"""Deserialize OHLC record from JSON."""
+⋮----
+data = json.loads(value)
+⋮----
+def _deserialize_oi(self, value: str) -> OpenInterest | None
+⋮----
+"""Deserialize OI record from JSON."""
+⋮----
+async def _cleanup(self)
+⋮----
+"""Cleanup resources on shutdown."""
+⋮----
+async def main()
+⋮----
+"""Main entry point."""
+consumer = AggregationConsumer()
+</file>
+
+<file path="mnemo_quant/pipelines/aggregation/aggregation_engine.py">
+"""
+Real-Time Aggregation Engine - Aggregate 1h data to higher timeframes.
+
+Aggregates 1h OHLC and OI data into 2h, 4h, 8h, and 1d timeframes in real-time.
+
+Key Concepts:
+- OHLC Aggregation: first, max, min, last, sum(volume)
+- OI Aggregation: last value (most recent)
+- Time Windows: Aligned to UTC boundaries
+- Buffering: Keep 1h records in memory until window completes
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+@dataclass
+class AggregationWindow
+⋮----
+"""Represents a time window for aggregation."""
+timeframe: str  # "1h", "4h", "1d"
+start_time: datetime  # Window start (inclusive)
+end_time: datetime  # Window end (exclusive)
+is_complete: bool = False
+⋮----
+def contains(self, ts: datetime) -> bool
+⋮----
+"""Check if timestamp falls within this window."""
+⋮----
+def __repr__(self)
+⋮----
+class AggregationEngine
+⋮----
+"""
+    Core aggregation logic for OHLC and OI data.
+    
+    Aggregates 1h records into higher timeframes using proper OHLC rules:
+    - Open: First record's open
+    - High: Maximum of all highs
+    - Low: Minimum of all lows
+    - Close: Last record's close
+    - Volume: Sum of all volumes
+    
+    For OI:
+    - Use the last (most recent) value
+    """
+⋮----
+@staticmethod
+    def aggregate_ohlc(records: list[OHLC], target_timeframe: str) -> OHLC | None
+⋮----
+"""
+        Aggregate 5m OHLC records into a higher timeframe.
+        
+        Args:
+            records: List of 5m OHLC records (must be sorted by timestamp)
+            target_timeframe: Target timeframe ("1h", "4h", "1d")
+            
+        Returns:
+            Aggregated OHLC record, or None if no records
+            
+        Example:
+            # Aggregate twelve 5m records into 1h
+            records_5m = [...]  # 12 records from 00:00 to 00:55
+            ohlc_1h = AggregationEngine.aggregate_ohlc(records_5m, "1h")
+        """
+⋮----
+# Sort by timestamp to ensure correct ordering
+sorted_records = sorted(records, key=lambda r: r.ts)
+⋮----
+# OHLC aggregation rules
+first_record = sorted_records[0]
+last_record = sorted_records[-1]
+⋮----
+aggregated = OHLC(
+⋮----
+ts=first_record.ts,  # Use window start time
+⋮----
+# OHLC aggregation
+open=first_record.open,  # First open
+high=max(r.high for r in sorted_records),  # Max high
+low=min(r.low for r in sorted_records),  # Min low
+close=last_record.close,  # Last close
+volume=sum(r.volume for r in sorted_records),  # Sum volume
+⋮----
+# Metadata
+⋮----
+@staticmethod
+    def aggregate_oi(records: list[OpenInterest], target_timeframe: str) -> OpenInterest | None
+⋮----
+"""
+        Aggregate 5m OI records into a higher timeframe.
+        
+        For OI, we use the LAST (most recent) value since OI is a point-in-time metric.
+        
+        Args:
+            records: List of 5m OI records (must be sorted by timestamp)
+            target_timeframe: Target timeframe ("1h", "4h", "1d")
+            
+        Returns:
+            Aggregated OI record (last value), or None if no records
+        """
+⋮----
+# Sort by timestamp and take the last (most recent) value
+⋮----
+# Create aggregated record with last value
+aggregated = OpenInterest(
+⋮----
+ts=sorted_records[0].ts,  # Use window start time
+⋮----
+# OI: Use last value
+⋮----
+@staticmethod
+    def get_window_size_minutes(timeframe: str) -> int
+⋮----
+"""Get window size in minutes for a timeframe."""
+mapping = {
+⋮----
+@staticmethod
+    def get_expected_1h_count(timeframe: str) -> int
+⋮----
+"""Get expected number of 1h records for a complete window."""
+window_minutes = AggregationEngine.get_window_size_minutes(timeframe)
+return window_minutes // 60  # 1h intervals
+⋮----
+@staticmethod
+    def is_window_complete(records: list, timeframe: str, allow_partial: bool = False) -> bool
+⋮----
+"""
+        Check if we have enough records to complete a window.
+        
+        Args:
+            records: List of 1h records
+            timeframe: Target timeframe
+            allow_partial: If True, allow partial windows (useful for testing)
+            
+        Returns:
+            True if window is complete (or partial allowed)
+        """
+⋮----
+expected_count = AggregationEngine.get_expected_1h_count(timeframe)
+</file>
+
+<file path="mnemo_quant/pipelines/aggregation/window_manager.py">
+"""
+Window Manager - Time window management for aggregation.
+
+Manages time windows for 2h, 4h, 8h, and 1d aggregations with proper UTC alignment.
+
+Window Alignment Rules:
+- 2h: Aligned to 00:00, 02:00, 04:00, ...
+- 4h: Aligned to 00:00, 04:00, 08:00, 12:00, 16:00, 20:00
+- 8h: Aligned to 00:00, 08:00, 16:00
+- 1d: Aligned to 00:00 UTC
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class WindowManager
+⋮----
+"""
+    Manages time windows for aggregation.
+    
+    Responsibilities:
+    - Calculate window boundaries for each timeframe
+    - Track which windows are active/complete
+    - Buffer 5m records until windows complete
+    """
+⋮----
+def __init__(self)
+⋮----
+# Buffers: {timeframe: {window_key: [records]}}
+⋮----
+# Track completed windows to avoid reprocessing
+⋮----
+@staticmethod
+    def get_window_for_timestamp(ts: datetime, timeframe: str) -> AggregationWindow
+⋮----
+"""
+        Get the aggregation window that contains the given timestamp.
+        
+        Args:
+            ts: Timestamp to find window for
+            timeframe: Target timeframe ("2h", "4h", "8h", "1d")
+            
+        Returns:
+            AggregationWindow aligned to UTC boundaries
+            
+        Example:
+            # For 2h timeframe
+            ts = datetime(2024, 1, 1, 14, 35)  # 14:35
+            window = WindowManager.get_window_for_timestamp(ts, "2h")
+            # Returns: Window(2h, 2024-01-01 14:00 - 2024-01-01 16:00)
+        """
+# Ensure UTC
+⋮----
+ts = ts.replace(tzinfo=None)  # Assume UTC if naive
+⋮----
+# Align to 2-hour boundaries
+hour = ts.hour
+aligned_hour = (hour // 2) * 2
+start = ts.replace(hour=aligned_hour, minute=0, second=0, microsecond=0)
+end = start + timedelta(hours=2)
+⋮----
+# Align to 4-hour boundaries (00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
+⋮----
+aligned_hour = (hour // 4) * 4
+⋮----
+end = start + timedelta(hours=4)
+⋮----
+# Align to 8-hour boundaries (00:00, 08:00, 16:00)
+⋮----
+aligned_hour = (hour // 8) * 8
+⋮----
+end = start + timedelta(hours=8)
+⋮----
+# Align to day boundary (00:00 UTC)
+start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
+end = start + timedelta(days=1)
+⋮----
+@staticmethod
+    def get_window_key(window: AggregationWindow, symbol: str, exchange: str, settlement: str) -> str
+⋮----
+"""
+        Generate unique key for a window.
+        
+        Format: {symbol}_{exchange}_{settlement}_{timeframe}_{start_iso}
+        """
+⋮----
+def add_record(self, record, data_type: str, timeframe: str)
+⋮----
+"""
+        Add a 1h record to the appropriate window buffer.
+        
+        Args:
+            record: OHLC or OpenInterest record
+            data_type: "ohlc" or "oi"
+            timeframe: Target aggregation timeframe
+        """
+# Get window for this timestamp
+window = self.get_window_for_timestamp(record.ts, timeframe)
+window_key = self.get_window_key(
+⋮----
+# Check if window already completed
+⋮----
+# Add to appropriate buffer
+⋮----
+"""
+        Get all complete windows ready for aggregation.
+        
+        A window is complete when:
+        1. Current time is past the window end time, OR
+        2. We have all expected 1h records (2 for 2h, 4 for 4h, 8 for 8h, 24 for 1d)
+        
+        Args:
+            timeframe: Timeframe to check
+            data_type: "ohlc" or "oi"
+            current_time: Current timestamp
+            allow_partial: If True, return partial windows (for testing)
+            
+        Returns:
+            Dict of {window_key: [records]} for complete windows
+        """
+buffers = self.ohlc_buffers if data_type == "ohlc" else self.oi_buffers
+complete = {}
+⋮----
+# Parse window from key
+# Format: {symbol}_{exchange}_{settlement}_{timeframe}_{start_iso}
+parts = window_key.split('_')
+start_iso = '_'.join(parts[4:])  # Rejoin ISO timestamp
+window_start = datetime.fromisoformat(start_iso)
+window = self.get_window_for_timestamp(window_start, timeframe)
+⋮----
+# Check if window is complete
+is_time_complete = current_time >= window.end_time
+⋮----
+is_count_complete = AggregationEngine.is_window_complete(
+⋮----
+def mark_window_complete(self, timeframe: str, window_key: str)
+⋮----
+"""Mark a window as completed to avoid reprocessing."""
+⋮----
+def clear_window(self, timeframe: str, data_type: str, window_key: str)
+⋮----
+"""Clear a window buffer after aggregation."""
+⋮----
+def get_buffer_stats(self) -> dict
+⋮----
+"""Get statistics about current buffers."""
+stats = {}
+</file>
+
+<file path="mnemo_quant/pipelines/base/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/pipelines/base/circuit_breaker.py">
+"""
+Circuit breaker pattern for exchange API calls.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CircuitState(Enum)
+⋮----
+CLOSED = "closed"
+OPEN = "open"
+HALF_OPEN = "half_open"
+⋮----
+class CircuitBreaker
+⋮----
+"""
+    Circuit breaker to prevent cascading failures.
+    """
+⋮----
+def __init__(self, failure_threshold: int = 5, reset_timeout: int = 60)
+⋮----
+async def can_execute(self) -> bool
+⋮----
+"""Check if request can be executed based on circuit state."""
+⋮----
+# Check if reset timeout has passed
+⋮----
+async def record_success(self)
+⋮----
+"""Record successful execution."""
+⋮----
+async def record_failure(self)
+⋮----
+"""Record failed execution."""
+⋮----
+def get_status(self) -> dict
+⋮----
+"""Get current circuit breaker status."""
+⋮----
+class CircuitBreakerManager
+⋮----
+"""Manages circuit breakers for all exchanges."""
+⋮----
+_breakers: dict[str, CircuitBreaker] = {}
+⋮----
+@classmethod
+    def get_breaker(cls, exchange: str) -> CircuitBreaker
+⋮----
+"""Get or create circuit breaker for an exchange."""
+⋮----
+@classmethod
+    def get_status(cls) -> dict[str, dict]
+⋮----
+"""Get status of all circuit breakers."""
+</file>
+
+<file path="mnemo_quant/pipelines/base/metrics.py">
+# src/mnemo_quant/pipelines/base/metrics.py
+⋮----
+class CircuitState(Enum)
+⋮----
+CLOSED = "closed"
+OPEN = "open"
+HALF_OPEN = "half_open"
+⋮----
+@dataclass
+class ExtractionResult
+⋮----
+records_extracted: int
+duration_seconds: float
+success: bool
+error_message: str | None = None
+metadata_updated: bool = False
+⋮----
+@dataclass
+class IngestionResult
+⋮----
+records_ingested: int
+records_skipped: int
+⋮----
+@dataclass
+class PublishResult
+⋮----
+messages_published: int
+messages_failed: int
+⋮----
+@dataclass
+class ValidationResult
+⋮----
+invalid_records: list = None
+⋮----
+@dataclass
+class TopicConfig
+⋮----
+name: str
+partitions: int = 3
+replication_factor: int = 1
+retention_hours: int = 24
+compression: str = "lz4"
+</file>
+
+<file path="mnemo_quant/pipelines/base/publishing.py">
+"""
+Enhanced Kafka publisher with dynamic topic routing and batching.
+Supports any data type and exchange with minimal configuration.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+# Prometheus metrics
+KAFKA_MESSAGES_SENT = Counter(
+⋮----
+KAFKA_PUBLISH_LATENCY = Histogram(
+⋮----
+KAFKA_BATCH_SIZE = Histogram(
+⋮----
+@dataclass
+class PublishResult
+⋮----
+"""Result of a publishing operation."""
+success: bool
+messages_published: int
+messages_failed: int
+errors: list[str]
+duration_seconds: float
+topic: str
+⋮----
+class BaseKafkaPublisher
+⋮----
+"""
+    Generic Kafka publisher for any data type.
+    
+    Topic routing pattern: market.{data_type}.{exchange}
+    Example:
+        - market.ohlc.binance
+        - market.oi.bybit
+        - market.macro.fred (future)
+    """
+⋮----
+exchange: str,  # Kept for backward compatibility, mapped to source
+⋮----
+batch_size: int = 100000,  # 100KB batches
+⋮----
+# Support both old 'exchange' param and new 'source' param
+⋮----
+def _build_topic_name(self) -> str
+⋮----
+"""
+        Build topic name using convention: {domain}.{data_type}.{source}{suffix}
+        Example: market.ohlc.binance or market.ohlc.binance.aggregated
+        """
+⋮----
+async def __aenter__(self)
+⋮----
+"""Context manager entry - initialize producer."""
+⋮----
+async def __aexit__(self, exc_type, exc_val, exc_tb)
+⋮----
+"""Context manager exit - close producer."""
+⋮----
+async def connect(self) -> None
+⋮----
+"""Initialize Kafka producer with optimal settings."""
+⋮----
+# aiokafka 0.12.0 compatible parameters
+⋮----
+# ✅ Size limits (supported in 0.12.0)
+⋮----
+# ✅ Batching (max_batch_size instead of batch_size)
+max_batch_size=self.batch_size,  # Was: batch_size
+⋮----
+# ✅ Reliability
+⋮----
+# ❌ REMOVED - not in aiokafka 0.12.0:
+# buffer_memory (use default)
+# max_in_flight_requests_per_connection (use default)
+⋮----
+# ✅ Timeouts
+⋮----
+# ✅ Serialization
+⋮----
+async def close(self) -> None
+⋮----
+"""Close Kafka producer gracefully."""
+⋮----
+"""
+        Publish a batch of Pydantic models to Kafka.
+        
+        Args:
+            records: List of Pydantic models (OHLC, OpenInterest, etc.)
+            partition_key: Optional key for partitioning (defaults to canonical_symbol)
+        
+        Returns:
+            PublishResult with success metrics
+        """
+⋮----
+start_time = datetime.utcnow()
+published = 0
+failed = 0
+errors = []
+⋮----
+# Send messages in batch
+futures = []
+⋮----
+# Serialize to JSON
+message_value = record.model_dump_json().encode('utf-8')
+⋮----
+# Use canonical_symbol as partition key for even distribution
+key = partition_key or getattr(record, 'canonical_symbol', None)
+⋮----
+key = key.encode('utf-8')
+⋮----
+# Send async
+future = await self.producer.send(
+⋮----
+# Wait for all sends to complete
+⋮----
+published = len(futures)
+⋮----
+# Flush to ensure delivery
+⋮----
+# Record metrics
+⋮----
+duration = (datetime.utcnow() - start_time).total_seconds()
+⋮----
+"""Publish a single record (wrapper for consistency)."""
+result = await self.publish_batch([record], partition_key)
+⋮----
+def get_topic(self) -> str
+⋮----
+"""Get the topic name this publisher writes to."""
+</file>
+
+<file path="mnemo_quant/pipelines/consumers/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/pipelines/consumers/batch_processor.py">
+# Batch logic is in StorageConsumer._flush_all_batches()
+# If needed, extract to a separate class for advanced batching (e.g., time-based + size-based)
+⋮----
+class BatchProcessor
+⋮----
+def __init__(self, max_size: int = 1000)
+⋮----
+def add(self, key: str, item)
+⋮----
+def flush(self, key: str) -> list
+⋮----
+batch = self.batches.pop(key, [])
+</file>
+
+<file path="mnemo_quant/pipelines/consumers/handler_registry.py">
+"""
+Dynamic handler registry for Kafka topic → database table mapping.
+Supports pattern matching for scalable multi-exchange architecture.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+@dataclass
+class HandlerConfig
+⋮----
+"""Configuration for a topic handler."""
+name: str
+topic_pattern: str  # Regex pattern
+model_class: type[BaseModel]
+table: str
+conflict_keys: list[str]
+data_type: str
+batch_size: int = 1000
+⋮----
+class HandlerRegistry
+⋮----
+r"""
+    Registry for mapping Kafka topics to database handlers.
+    
+    Topic patterns:
+        - market\.ohlc\..* → matches market.ohlc.binance, market.ohlc.bybit, etc.
+        - market\.oi\..* → matches market.oi.binance, market.oi.bybit, etc.
+        - market\.macro\.fred → matches market.macro.fred
+    """
+⋮----
+def __init__(self, config_path: str = 'config/kafka/handlers.yaml')
+⋮----
+def _load_handlers(self, config_path: str) -> None
+⋮----
+"""Load handler configurations from YAML."""
+⋮----
+config = yaml.safe_load(f)
+⋮----
+# Dynamically import model class
+model_path = handler_def['model']
+⋮----
+module = __import__(module_name, fromlist=[class_name])
+model_class = getattr(module, class_name)
+⋮----
+handler = HandlerConfig(
+⋮----
+def get_handler(self, topic: str) -> HandlerConfig | None
+⋮----
+"""
+        Get handler for a given topic using pattern matching.
+        
+        Args:
+            topic: Kafka topic name (e.g., 'market.ohlc.binance')
+        
+        Returns:
+            HandlerConfig if pattern matches, None otherwise
+        """
+⋮----
+def get_all_patterns(self) -> list[str]
+⋮----
+"""Get list of all topic patterns for consumer subscription."""
+</file>
+
+<file path="mnemo_quant/pipelines/consumers/storage_consumer.py">
+# src/mnemo_quant/pipelines/consumers/storage_consumer.py
+"""
+Enhanced Storage Consumer with robust topic discovery and error handling.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+# Prometheus metrics
+KAFKA_MESSAGES_CONSUMED = Counter(
+⋮----
+KAFKA_CONSUME_LATENCY = Histogram(
+⋮----
+DB_WRITE_LATENCY = Histogram(
+⋮----
+CONSUMER_LAG = Gauge(
+⋮----
+BATCH_SIZE_METRIC = Histogram(
+⋮----
+class StorageConsumer
+⋮----
+"""
+    Enhanced Kafka consumer with:
+    - Graceful handling of missing topics
+    - Dynamic topic discovery
+    - Batch processing with flush guarantees
+    - Comprehensive error handling
+    """
+⋮----
+# Setup graceful shutdown
+⋮----
+def _handle_shutdown(self, signum, frame)
+⋮----
+"""Handle shutdown signals gracefully."""
+⋮----
+async def _connect_database_with_retry(self, max_retries: int = 3, delay: float = 5.0)
+⋮----
+"""Connect to database with retry logic."""
+⋮----
+async def _discover_topics(self) -> list[str]
+⋮----
+"""
+        Discover existing topics that match our handler patterns.
+        Returns empty list if no topics found (non-fatal).
+        """
+⋮----
+admin_client = AIOKafkaAdminClient(
+⋮----
+# ✅ FIX: aiokafka 0.12.0 returns a list of topic names directly
+all_topics = await admin_client.list_topics()
+⋮----
+# Convert to list if it's not already (defensive programming)
+⋮----
+all_topics = list(all_topics)
+⋮----
+# Get handler patterns
+patterns = self.handler_registry.get_all_patterns()
+⋮----
+# Match topics against patterns
+matched_topics = []
+⋮----
+# Remove backslashes for regex matching
+regex_pattern = pattern.replace('\\', '')
+⋮----
+async def start(self) -> None
+⋮----
+"""Start the consumer service with robust initialization."""
+⋮----
+# 1. Initialize database with retry
+⋮----
+# 2. Discover existing topics
+topics_to_subscribe = await self._discover_topics()
+⋮----
+# Use empty list - consumer will work but poll will timeout until topics exist
+topics_to_subscribe = []
+⋮----
+# 3. Initialize Kafka consumer
+⋮----
+*topics_to_subscribe,  # Can be empty list
+⋮----
+enable_auto_commit=False,  # Manual commit for reliability
+⋮----
+# 4. Start processing loop
+⋮----
+async def _consume_loop(self) -> None
+⋮----
+"""Main consumption loop with batching and periodic flushing."""
+last_flush = datetime.utcnow()
+last_topic_discovery = datetime.utcnow()
+consecutive_errors = 0
+max_consecutive_errors = 10
+⋮----
+# Periodically rediscover topics (every 30 seconds)
+⋮----
+# Fetch messages with timeout
+msg_batch = await self.consumer.getmany(
+⋮----
+# No messages - check if we should flush based on time
+elapsed_ms = (datetime.utcnow() - last_flush).total_seconds() * 1000
+⋮----
+flush_success = await self._flush_buffers()
+⋮----
+# Process messages by topic
+⋮----
+topic = topic_partition.topic
+⋮----
+# Flush if buffer is large enough
+should_flush = any(len(msgs) >= self.batch_size for msgs in self.message_buffer.values())
+⋮----
+async def _rediscover_topics(self)
+⋮----
+"""Periodically rediscover new topics and update subscription."""
+⋮----
+current_topics = set(self.consumer.subscription())
+new_topics = set(await self._discover_topics())
+⋮----
+# Find topics to add
+topics_to_add = new_topics - current_topics
+⋮----
+# Subscribe to all topics (current + new)
+all_topics = list(current_topics | new_topics)
+⋮----
+async def _process_messages(self, topic: str, messages: list) -> None
+⋮----
+"""Process and buffer messages for a specific topic."""
+handler = self.handler_registry.get_handler(topic)
+⋮----
+valid_records = []
+⋮----
+# Parse JSON and validate with Pydantic model
+record = handler.model_class.model_validate_json(msg.value)
+⋮----
+# Add to buffer
+⋮----
+async def _flush_buffers(self) -> bool
+⋮----
+"""Flush all message buffers to database."""
+⋮----
+all_success = True
+total_flushed = 0
+⋮----
+stored_count = await self.db.upsert_from_model_batch(
+⋮----
+# Clear buffer after successful write
+⋮----
+all_success = False
+# Don't clear buffer on error - will retry
+⋮----
+async def stop(self) -> None
+⋮----
+"""Stop the consumer gracefully."""
+⋮----
+# Flush remaining messages
+⋮----
+# Close Kafka consumer
+⋮----
+# Close database connection
+⋮----
+async def main()
+⋮----
+"""Entry point for storage consumer service."""
+⋮----
+# Configuration from environment
+consumer_group = os.getenv('CONSUMER_GROUP', 'storage-group')
+batch_size = int(os.getenv('BATCH_SIZE', '500'))
+flush_interval_ms = int(os.getenv('FLUSH_INTERVAL_MS', '10000'))
+⋮----
+consumer = StorageConsumer(
+</file>
+
+<file path="mnemo_quant/pipelines/extraction/ccxt/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/pipelines/extraction/ccxt/pipeline_factory.py">
+"""
+Factory for creating connectors based on exchange capabilities.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class PipelineFactory
+⋮----
+"""Factory for creating exchange-specific adapters using the new ingestion layer."""
+⋮----
+CONNECTOR_CLASSES: dict[str, type[BaseAdapter]] = {
+⋮----
+@classmethod
+    def _resolve_connector_class(cls, exchange: str, market_type: str | None) -> type[BaseAdapter]
+⋮----
+key = exchange if market_type is None else f"{exchange}_{market_type}"
+⋮----
+"""Create appropriate adapter for exchange (falls back to generic CCXTBase)."""
+⋮----
+# Load config from registry if not provided
+⋮----
+exchange_config = config_registry.get(exchange)
+config = exchange_config.to_dict()
+⋮----
+connector_class = cls._resolve_connector_class(exchange, market_type)
+⋮----
+# Instantiate specific adapter
+⋮----
+# Fallback: use generic CCXTBaseAdapter via exchange mapper
+⋮----
+@classmethod
+    def get_supported_data_types(cls, exchange: str) -> list[str]
+⋮----
+"""Return supported data types based on config registry."""
+config = config_registry.get(exchange)
+supported = []
+⋮----
+@classmethod
+    def has_specific_connector(cls, exchange: str) -> bool
+⋮----
+"""Check if we have a concrete adapter for this exchange."""
+⋮----
+@classmethod
+    def list_exchanges_with_specific_connectors(cls) -> list[str]
+⋮----
+"""Return exchanges with concrete adapters registered."""
+</file>
+
+<file path="mnemo_quant/pipelines/extraction/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/core/orchestrator.py">
+# mnemo_quant/pipelines/orchestration/core/orchestrator.py
+"""
+Core Orchestration Engine - FIXED to use Kafka architecture.
+Publishes to Kafka instead of direct database writes.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class OrchestrationMode(str, Enum)
+⋮----
+"""Orchestration operation modes."""
+BACKFILL = "backfill"
+INCREMENTAL = "incremental"
+CONTINUOUS = "continuous"
+⋮----
+@dataclass
+class OrchestrationConfig
+⋮----
+"""Configuration for orchestration operations."""
+# Backfill settings
+default_chunk_days: int = 7
+max_concurrent_exchanges: int = 3
+records_per_batch: int = 1000
+⋮----
+# Incremental settings
+lookback_hours: int = 24
+overlap_minutes: int = 60
+run_interval_seconds: int = 300
+⋮----
+# Publishing
+publish_batch_size: int = 500
+⋮----
+# Monitoring
+freshness_threshold_hours: int = 2
+gap_alert_threshold_hours: int = 6
+error_alert_threshold: int = 5
+⋮----
+@dataclass
+class OrchestrationResult
+⋮----
+"""Result of an orchestration operation."""
+success: bool
+mode: OrchestrationMode
+canonical_symbol: str
+exchange: str
+market_type: str
+timeframe: str
+data_type: str
+⋮----
+# Metrics
+records_fetched: int
+records_published: int  # CHANGED: from records_stored
+messages_sent: int      # NEW: Kafka messages
+duration_seconds: float
+⋮----
+# Timestamps
+start_time: datetime
+end_time: datetime
+earliest_record_ts: datetime | None = None
+latest_record_ts: datetime | None = None
+⋮----
+# Error tracking
+error_message: str | None = None
+errors_encountered: list[str] = None
+⋮----
+def __post_init__(self)
+⋮----
+class CoreOrchestrator
+⋮----
+"""
+    Core orchestration engine for market data operations.
+    
+    FIXED: Now uses Kafka architecture:
+    - Fetches data from exchanges
+    - Publishes to Kafka topics
+    - StorageConsumer handles database writes
+    """
+⋮----
+EXCHANGE_OI_LIMITATIONS = {
+⋮----
+def validate_oi_timeframe(self, exchange: str, timeframe: str) -> bool
+⋮----
+"""Validate OI timeframe support per exchange"""
+supported = self.EXCHANGE_OI_LIMITATIONS.get(exchange, [])
+# If exchange not in list, assume supported (or handle as needed)
+⋮----
+# Kafka publishers (one per data type)
+⋮----
+async def __aenter__(self)
+⋮----
+"""Async context manager entry"""
+⋮----
+async def __aexit__(self, exc_type, exc_val, exc_tb)
+⋮----
+"""Async context manager exit - cleanup resources"""
+⋮----
+async def cleanup(self)
+⋮----
+"""
+        Cleanup publishers on shutdown to prevent warnings.
+        Call this when orchestrator is done.
+        """
+⋮----
+lookback_minutes: int = 120  # Shorter lookback for 1h
+⋮----
+"""
+        Optimized 1h incremental fetch with shorter lookback.
+        Uses 2h lookback instead of default 24h for efficiency.
+        """
+# Temporarily override config for 1h fetches
+original_lookback = self.config.lookback_hours
+⋮----
+result = await self.orchestrate_incremental(
+⋮----
+# Restore original config
+⋮----
+settlement_currency: str | None = "USDT"  # FIXED: Default to USDT
+⋮----
+"""
+        Execute smart incremental update using metadata for gap detection.
+        FIXED: Now publishes to Kafka instead of direct DB writes.
+        """
+operation_start = datetime.utcnow()
+exchange_name = exchange.exchange.value
+market_type = market_type or exchange.market_type.value
+⋮----
+# Validate OI timeframe support
+⋮----
+success=True,  # Skip gracefully
+⋮----
+# Step 1: Get last timestamp from metadata
+last_ts = await self._get_last_timestamp(
+⋮----
+# Step 2: Determine time range with smart overlap
+end_time = datetime.utcnow()
+⋮----
+start_time = last_ts - timedelta(minutes=self.config.overlap_minutes)
+⋮----
+start_time = end_time - timedelta(hours=self.config.lookback_hours)
+⋮----
+# Step 3: Resolve exchange-specific symbol
+exchange_symbol = self._resolve_symbol(
+⋮----
+# Step 4: Fetch data
+records = await self._fetch_data(
+⋮----
+# Step 5: PUBLISH TO KAFKA (not direct DB write)
+publish_result = await self._publish_data(
+⋮----
+duration = (datetime.utcnow() - operation_start).total_seconds()
+⋮----
+# Graceful handling for symbol resolution or validation errors
+error_msg = str(e)
+⋮----
+success=True,  # Success = true to not fail pipeline
+⋮----
+# Re-raise if it's not a symbol availability issue
+⋮----
+settlement_currency: str | None = "USDT",  # FIXED: Default to USDT
+⋮----
+"""
+        Execute backfill operation with Kafka publishing.
+        FIXED: Publishes to Kafka for event-driven processing.
+        """
+⋮----
+chunk_days = chunk_days or self.config.default_chunk_days
+⋮----
+total_records = 0
+total_published = 0
+batches_processed = 0
+current_date = start_date
+errors = []
+⋮----
+# Resolve symbol once
+⋮----
+# Initialize progress tracking
+⋮----
+# Process in chunks
+⋮----
+batch_start = datetime.utcnow()
+⋮----
+chunk_end = min(
+⋮----
+# Fetch chunk
+⋮----
+# PUBLISH TO KAFKA (not direct DB)
+⋮----
+# Update progress
+⋮----
+error_msg = f"Chunk {current_date} failed: {e}"
+⋮----
+current_date = chunk_end
+⋮----
+# Rate limiting
+batch_duration = (datetime.utcnow() - batch_start).total_seconds()
+⋮----
+# Mark complete
+⋮----
+# ========================================================================
+# HELPER METHODS - FIXED TO USE KAFKA
+⋮----
+"""Resolve exchange-specific symbol using registry."""
+endpoint = EndpointType.OHLC if data_type == MarketDataType.OHLC else EndpointType.OPEN_INTEREST
+⋮----
+"""Fetch data using appropriate exchange method."""
+⋮----
+"""
+        FIXED: Publish to Kafka instead of direct database writes.
+        Uses your BaseKafkaPublisher with topic pattern: market.{data_type}.{exchange}
+        """
+⋮----
+# Get or create publisher for this data type/exchange combo
+data_type_str = 'ohlc' if data_type == MarketDataType.OHLC else 'oi'
+publisher_key = f"{exchange}_{data_type_str}"
+⋮----
+publisher = self.publishers[publisher_key]
+⋮----
+# Publish batch to Kafka
+# Topic will be: market.{data_type}.{exchange}
+result = await publisher.publish_batch(records)
+⋮----
+# FIXED: Add error propagation
+⋮----
+error_details = f"Failed: {result.messages_failed}"
+⋮----
+"""Get last timestamp from metadata."""
+⋮----
+async def _init_backfill_progress(self, data_type, canonical_symbol, exchange, market_type, timeframe, start_date, end_date)
+⋮----
+"""Initialize backfill progress tracking."""
+progress = {
+⋮----
+async def _update_backfill_progress(self, data_type, canonical_symbol, exchange, market_type, timeframe, current_date, records_fetched, batches_processed)
+⋮----
+"""Update backfill progress."""
+⋮----
+async def _complete_backfill(self, data_type, canonical_symbol, exchange, market_type, timeframe, records_count)
+⋮----
+"""Mark backfill as complete."""
+⋮----
+async def _fail_backfill(self, data_type, canonical_symbol, exchange, market_type, timeframe, error)
+⋮----
+"""Mark backfill as failed."""
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/scripts/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/scripts/backfill_runner.py">
+# mnemo_quant/pipelines/orchestration/scripts/backfill_pipeline1_enhanced.py
+#!/usr/bin/env python3
+"""
+Pipeline 1: Enhanced Historical Backfill with CoinAlyze API Point Limit Management
+OHLC: Binance USDT only | OI: All exchanges via CoinAlyze
+"""
+⋮----
+# Add project root to path
+⋮----
+# Configure logging
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CoinAlyzeRateLimitManager
+⋮----
+"""
+    Manages CoinAlyze API rate limits and data point constraints.
+    Prevents silent data corruption from API truncation.
+    """
+⋮----
+# Conservative limits (slightly below 1000 for safety)
+MAX_POINTS_PER_REQUEST = 950
+⋮----
+# Timeframe to minutes mapping - STANDARD CCXT FORMATS
+TIMEFRAME_MINUTES = {
+⋮----
+# Map user-friendly formats to standard formats
+TIMEFRAME_ALIASES = {
+⋮----
+# Safe initial chunk sizes (90% of max capacity) - STANDARD FORMATS
+SAFE_CHUNK_DAYS = {
+⋮----
+"1m": 0.6,   # ~16 hours = 960 points
+"5m": 3.0,   # 3 days = 864 points
+"15m": 9.0,  # 9 days = 864 points
+"30m": 18.0, # 18 days = 864 points
+"1h": 36.0,  # 36 days = 864 points
+"4h": 144.0, # 144 days = 864 points
+"1d": 855.0  # 855 days = 855 points
+⋮----
+def __init__(self, verbose: bool = False)
+⋮----
+def normalize_timeframe(self, timeframe: str) -> str
+⋮----
+"""
+        Normalize timeframe to standard CCXT format.
+        Converts '5min' -> '5m', '1hour' -> '1h', etc.
+        """
+# If already standard format, return as-is
+⋮----
+# Convert from aliases
+⋮----
+normalized = self.TIMEFRAME_ALIASES[timeframe]
+⋮----
+# Try to parse common patterns
+⋮----
+minutes = timeframe.replace('min', '')
+⋮----
+hours = timeframe.replace('hour', '')
+⋮----
+# Unknown format, try to use as-is but warn
+⋮----
+def calculate_max_points_range(self, timeframe: str) -> timedelta
+⋮----
+"""Calculate maximum safe time range for a timeframe."""
+normalized_tf = self.normalize_timeframe(timeframe)
+⋮----
+# Fallback for unknown timeframes - use 1h as default
+⋮----
+normalized_tf = "1h"
+⋮----
+minutes_per_chunk = self.SAFE_CHUNK_DAYS[normalized_tf] * 24 * 60
+max_points = minutes_per_chunk / self.TIMEFRAME_MINUTES.get(normalized_tf, 60)  # Default to 1h
+⋮----
+"""
+        Fetch data with point limit validation.
+        Returns (data, needs_smaller_chunks)
+        """
+# Normalize timeframe for calculations but use original for API calls
+⋮----
+tf_minutes = self.TIMEFRAME_MINUTES.get(normalized_tf, 60)  # Default to 1h
+⋮----
+expected_points = ((end_date - start_date).total_seconds() / 60) / tf_minutes
+⋮----
+# Fetch data - use ORIGINAL timeframe for API calls
+⋮----
+data = await fetcher.fetch_ohlc_history(symbol, timeframe, start_date, end_date)
+else:  # oi
+data = await fetcher.fetch_oi_history(symbol, timeframe, start_date, end_date)
+⋮----
+# Validate point count
+point_count = len(data)
+needs_smaller_chunks = False
+⋮----
+needs_smaller_chunks = True
+⋮----
+# Track performance for adaptive learning
+⋮----
+def _track_performance(self, timeframe: str, points: int, start: datetime, end: datetime)
+⋮----
+"""Track API performance for adaptive chunk sizing."""
+⋮----
+tf_minutes = self.TIMEFRAME_MINUTES.get(normalized_tf, 60)
+⋮----
+expected_points = ((end - start).total_seconds() / 60) / tf_minutes
+efficiency = points / expected_points if expected_points > 0 else 0
+⋮----
+# Keep only recent history
+⋮----
+def get_optimized_chunk_size(self, timeframe: str) -> timedelta
+⋮----
+"""Get optimized chunk size based on historical performance."""
+⋮----
+stats = self.performance_stats[normalized_tf]
+avg_efficiency = sum(s['efficiency'] for s in stats) / len(stats)
+⋮----
+# Adjust chunk size based on efficiency
+if avg_efficiency >= 0.95:  # Good efficiency, can try larger chunks
+adjustment = 1.1
+elif avg_efficiency <= 0.8:  # Poor efficiency, need smaller chunks
+adjustment = 0.8
+⋮----
+adjustment = 1.0
+⋮----
+new_days = self.SAFE_CHUNK_DAYS[normalized_tf] * adjustment
+max_days = (self.MAX_POINTS_PER_REQUEST * self.TIMEFRAME_MINUTES[normalized_tf]) / (24 * 60)
+new_days = min(new_days, max_days * 0.95)  # Stay under limit
+⋮----
+class EnhancedPipeline1Backfill
+⋮----
+"""
+    Enhanced Pipeline 1 with CoinAlyze API point limit management
+    """
+⋮----
+# Enable debug logging for all relevant modules
+debug_modules = [
+⋮----
+async def initialize(self)
+⋮----
+"""Initialize database and orchestrator."""
+⋮----
+# Initialize orchestrator for publishing
+⋮----
+async def cleanup(self)
+⋮----
+"""Cleanup resources."""
+⋮----
+"""
+        Execute enhanced backfill with point limit management.
+        """
+⋮----
+# Show timeframe normalization
+normalized_timeframes = [self.rate_manager.normalize_timeframe(tf) for tf in timeframes]
+⋮----
+all_results = {}
+⋮----
+fetcher = CoinAlyzeFetcher(client)
+⋮----
+symbol_results = {}
+⋮----
+timeframe_results = {}
+⋮----
+# Show chunk strategy for this timeframe
+chunk_size = self.rate_manager.get_optimized_chunk_size(timeframe)
+normalized_tf = self.rate_manager.normalize_timeframe(timeframe)
+⋮----
+current_start = start_date
+data_records = []
+total_chunks = 0
+successful_chunks = 0
+⋮----
+chunk_end = min(current_start + chunk_size, end_date)
+⋮----
+tf_minutes = self.rate_manager.TIMEFRAME_MINUTES.get(normalized_tf, 60)
+expected_points = ((chunk_end - current_start).total_seconds() / 60) / tf_minutes
+⋮----
+# Fetch with point limit validation
+⋮----
+# Adjust chunk size if needed
+⋮----
+old_chunk = chunk_size
+chunk_size = chunk_size * 0.7  # Reduce by 30%
+⋮----
+# Success, move to next chunk
+current_start = chunk_end
+⋮----
+# Small delay between chunks
+⋮----
+# Try with smaller chunk
+⋮----
+chunk_size = chunk_size * 0.5
+⋮----
+if chunk_size.days < 0.1:  # Minimum chunk size
+⋮----
+# Retry the same chunk with smaller size
+⋮----
+# Store data via orchestrator (using existing Kafka flow)
+⋮----
+# Brief pause between symbols
+⋮----
+# Final summary
+⋮----
+async def _store_symbol_data(self, symbol: str, symbol_results: dict)
+⋮----
+"""Store symbol data using existing orchestrator flow."""
+⋮----
+# Convert our enhanced results to the format expected by existing storage
+⋮----
+records = data_info['records']
+⋮----
+# Group records by exchange to avoid mixing exchanges in single topic
+⋮----
+records_by_exchange = defaultdict(list)
+⋮----
+exchange_val = record.exchange
+exchange = exchange_val.value if hasattr(exchange_val, 'value') else str(exchange_val)
+⋮----
+exchange = 'binance'  # Default fallback
+⋮----
+# Publish each exchange's data to its dedicated topic
+⋮----
+async def _generate_enhanced_summary(self, all_results: dict)
+⋮----
+"""Generate comprehensive final summary with chunk statistics."""
+⋮----
+total_symbols = len(all_results)
+total_ohlc = 0
+total_oi = 0
+⋮----
+chunks_processed = data_info['chunks_processed']
+chunks_successful = data_info['chunks_successful']
+efficiency = data_info['chunk_efficiency']
+⋮----
+async def validate_enhanced_setup(self)
+⋮----
+"""Validate that enhanced Pipeline 1 setup is correct."""
+⋮----
+# Check database connection
+⋮----
+# Check rate manager
+⋮----
+# Show chunk strategies for common timeframes
+⋮----
+test_timeframes = ["1min", "5min", "15min", "1hour", "4hour", "1day"]
+⋮----
+max_points = (chunk_size.days * 24 * 60) / self.rate_manager.TIMEFRAME_MINUTES.get(normalized_tf, 60)
+⋮----
+def main()
+⋮----
+parser = argparse.ArgumentParser(
+⋮----
+args = parser.parse_args()
+⋮----
+# Create enhanced backfill instance
+backfill = EnhancedPipeline1Backfill(verbose=args.verbose)
+⋮----
+# Run validation only
+success = asyncio.run(backfill.validate_enhanced_setup())
+⋮----
+# Parse dates
+start_date = datetime.strptime(args.start_date, '%Y-%m-%d')
+end_date = datetime.strptime(args.end_date, '%Y-%m-%d')
+⋮----
+# Run enhanced backfill
+results = asyncio.run(backfill.run_enhanced_backfill(
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/scripts/incremental_runner.py">
+#!/usr/bin/env python3
+# mnemo_quant/pipelines/orchestration/scripts/incremental_runner.py
+"""
+Production incremental update runner for continuous data collection.
+Runs continuously or in scheduled mode with smart metadata-driven updates.
+"""
+⋮----
+# Add project root to path
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class IncrementalRunner
+⋮----
+"""
+    Production incremental update runner.
+    
+    Features:
+    - Continuous or scheduled execution
+    - Metadata-driven smart updates
+    - Multi-exchange, multi-asset support
+    - Graceful shutdown handling
+    - Comprehensive monitoring
+    """
+⋮----
+EXCHANGE_CLASSES = {
+⋮----
+# Setup signal handlers
+⋮----
+def _handle_shutdown(self, signum, frame)
+⋮----
+"""Handle shutdown signals gracefully."""
+⋮----
+async def run(self) -> dict
+⋮----
+"""Execute incremental updates."""
+⋮----
+# Initialize
+⋮----
+async def _run_continuous(self) -> dict
+⋮----
+"""Run continuously with interval delays."""
+⋮----
+iteration = 0
+total_records = 0
+total_errors = 0
+⋮----
+cycle_start = datetime.utcnow()
+⋮----
+results = await self._execute_update_cycle()
+⋮----
+# Aggregate metrics
+cycle_records = sum(r.records_published for r in results)
+cycle_errors = sum(1 for r in results if not r.success)
+⋮----
+cycle_duration = (datetime.utcnow() - cycle_start).total_seconds()
+⋮----
+# Sleep until next interval
+⋮----
+sleep_time = max(0, self.interval - cycle_duration)
+⋮----
+async def _run_once(self) -> dict
+⋮----
+"""Run a single update cycle."""
+⋮----
+start_time = datetime.utcnow()
+⋮----
+duration = (datetime.utcnow() - start_time).total_seconds()
+⋮----
+successful = [r for r in results if r.success]
+failed = [r for r in results if not r.success]
+total_records = sum(r.records_published for r in successful)
+⋮----
+summary = {
+⋮----
+async def _execute_update_cycle(self) -> list[OrchestrationResult]
+⋮----
+"""Execute one full update cycle for all configured assets."""
+tasks = self._generate_tasks()
+results = []
+⋮----
+# Execute all tasks concurrently
+coroutines = [self._execute_single_task(task) for task in tasks]
+results = await asyncio.gather(*coroutines, return_exceptions=True)
+⋮----
+# Filter out exceptions and convert to results
+valid_results = []
+⋮----
+# Create failed result
+task = tasks[i]
+⋮----
+def _generate_tasks(self) -> list[dict]
+⋮----
+"""Generate update tasks for all configured assets."""
+tasks = []
+⋮----
+market_type = self.market_types.get(
+⋮----
+async def _execute_single_task(self, task: dict) -> OrchestrationResult
+⋮----
+"""Execute a single incremental update task."""
+exchange_name = task['exchange_name']
+symbol = task['symbol']
+timeframe = task['timeframe']
+data_type = task['data_type']
+market_type = task['market_type']
+⋮----
+# Create exchange instance
+exchange_class = self.EXCHANGE_CLASSES[exchange_name]
+market_type_enum = MarketType(market_type)
+⋮----
+exchange = exchange_class(market_type=market_type_enum)
+⋮----
+# Execute incremental update
+result = await self.orchestrator.orchestrate_incremental(
+⋮----
+# Return failed result
+⋮----
+async def _initialize(self)
+⋮----
+"""Initialize database and orchestrator."""
+⋮----
+config = OrchestrationConfig(
+⋮----
+async def _cleanup(self)
+⋮----
+"""Cleanup resources."""
+⋮----
+def parse_args()
+⋮----
+"""Parse command line arguments."""
+parser = argparse.ArgumentParser(
+⋮----
+def main()
+⋮----
+"""Main entry point."""
+args = parse_args()
+⋮----
+# Get symbols from config if not specified
+⋮----
+symbols = args.symbols
+⋮----
+# Load active symbols from config
+registry = EnhancedSymbolRegistry('config/assets/crypto_universe.yaml')
+# Get first exchange to determine active symbols
+first_exchange = args.exchanges[0]
+symbol_configs = registry.get_active_symbols(
+⋮----
+market_type='linear_perpetual'  # Default
+⋮----
+symbols = [s.canonical for s in symbol_configs]
+⋮----
+# Parse data types
+data_types = []
+⋮----
+# Parse market types
+market_types = {}
+⋮----
+# Create and run incremental runner
+runner = IncrementalRunner(
+⋮----
+# Run
+⋮----
+summary = asyncio.run(runner.run())
+⋮----
+# Print summary
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/scripts/service_runner.py">
+#!/usr/bin/env python3
+"""
+Service Runner CLI
+CLI to start/stop/manage the incremental service.
+"""
+⋮----
+# Add project root to path
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+async def check_health(port: int = 8080)
+⋮----
+"""Check service health"""
+⋮----
+data = await response.json()
+⋮----
+async def stop_service()
+⋮----
+"""Stop the service"""
+# In a Docker environment, the best way to stop is usually sending SIGTERM to the container.
+# If we wanted to stop via CLI, we'd need a control endpoint or PID management.
+# For now, we'll guide the user to use docker stop.
+⋮----
+# Alternatively, if we had a shutdown endpoint:
+# await session.post(f'http://localhost:{port}/shutdown')
+⋮----
+def main()
+⋮----
+parser = argparse.ArgumentParser(description='Incremental Service Runner')
+group = parser.add_mutually_exclusive_group(required=True)
+⋮----
+args = parser.parse_args()
+⋮----
+service = IncrementalFetcherService()
+loop = asyncio.get_event_loop()
+⋮----
+# We need to read config to know the port, or assume default
+# Ideally we load config same as service
+⋮----
+config = yaml.safe_load(f)
+port = config['health']['port']
+⋮----
+port = 8080
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/services/incremental_service.py">
+#!/usr/bin/env python3
+"""
+Incremental 1h Fetcher Service - Long-Running Service with APScheduler.
+
+Continuously fetches 1h OHLC and OI data from CCXT exchanges on a schedule.
+Uses APScheduler for reliable scheduling and CoreOrchestrator for data fetching.
+
+Features:
+- Scheduled 1h data fetching (every 1 hour)
+- Multi-exchange, multi-symbol, multi-settlement support
+- Graceful shutdown handling
+- Health check HTTP endpoint
+- Comprehensive error handling and logging
+"""
+⋮----
+# Add project root to path
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class HealthCheckHandler(BaseHTTPRequestHandler)
+⋮----
+"""Simple HTTP health check handler."""
+⋮----
+def do_GET(self)
+⋮----
+response = {
+⋮----
+def log_message(self, format, *args)
+⋮----
+"""Suppress default logging."""
+⋮----
+class IncrementalFetcherService
+⋮----
+"""
+    Long-running service for continuous 1h data fetching.
+    
+    Uses APScheduler to run fetch cycles every 1 hour.
+    Handles graceful shutdown and error recovery.
+    """
+⋮----
+EXCHANGE_CLASSES = {
+⋮----
+def __init__(self, config_path: str = 'config/services/incremental_fetcher.yaml')
+⋮----
+"""Initialize the service with configuration."""
+⋮----
+# Core components
+⋮----
+# State tracking
+⋮----
+# Health check server
+⋮----
+# Setup signal handlers
+⋮----
+def _load_config(self) -> dict
+⋮----
+"""Load service configuration from YAML."""
+⋮----
+config = yaml.safe_load(f)
+⋮----
+def _handle_shutdown(self, signum, frame)
+⋮----
+"""Handle shutdown signals gracefully."""
+⋮----
+async def start(self)
+⋮----
+"""Start the incremental fetcher service."""
+⋮----
+# Initialize database and orchestrator
+⋮----
+# Start health check server if enabled
+⋮----
+# Setup scheduler
+⋮----
+# Start scheduler
+⋮----
+# Run first fetch immediately (don't wait for next hour)
+⋮----
+# Keep running until shutdown signal
+⋮----
+async def _initialize(self)
+⋮----
+"""Initialize database and orchestrator."""
+⋮----
+orch_config = OrchestrationConfig(
+⋮----
+def _setup_scheduler(self)
+⋮----
+"""Setup APScheduler for periodic fetching."""
+⋮----
+# Add fetch job
+# Use CronTrigger to align with wall clock time (e.g., XX:01:00)
+cron_minute = self.config['schedule'].get('cron_minute', 1)
+⋮----
+trigger = CronTrigger(
+⋮----
+max_instances=1,  # Don't run overlapping instances
+coalesce=True,    # Combine missed runs
+misfire_grace_time=300  # Allow 5m grace period
+⋮----
+def _start_health_server(self)
+⋮----
+"""Start HTTP health check server."""
+port = self.config['health']['port']
+⋮----
+async def _fetch_cycle(self)
+⋮----
+"""Execute one complete fetch cycle for all configured assets."""
+cycle_start = datetime.utcnow()
+⋮----
+# Get all combinations to fetch
+combinations = self._get_fetch_combinations()
+⋮----
+# Fetch all combinations
+results = await self._fetch_all_combinations(combinations)
+⋮----
+# Aggregate results
+successful = sum(1 for r in results if r.success)
+failed = len(results) - successful
+total_records = sum(r.records_published for r in results if r.success)
+⋮----
+duration = (datetime.utcnow() - cycle_start).total_seconds()
+⋮----
+def _get_fetch_combinations(self) -> list
+⋮----
+"""Get all symbol/exchange/settlement combinations to fetch."""
+combinations = []
+⋮----
+# Get configured exchanges and symbols
+exchanges = self.config['fetching']['exchanges']
+symbols = self.config['fetching']['symbols']
+market_types = self.config['fetching']['market_types']
+⋮----
+# For each exchange/symbol, get all settlements if configured
+⋮----
+market_type = market_types.get(exchange, 'linear_perpetual')
+⋮----
+# Get all settlements for this symbol/exchange
+settlements = self.coverage_manager.get_settlements(
+⋮----
+# Just use default (USDT)
+⋮----
+async def _fetch_all_combinations(self, combinations: list[dict]) -> list
+⋮----
+"""Fetch all combinations with concurrency control."""
+results = []
+⋮----
+# Group by exchange for concurrency control
+by_exchange = {}
+⋮----
+exchange = combo['exchange']
+⋮----
+# Process exchanges with concurrency limit
+max_concurrent = self.config['concurrency']['max_concurrent_exchanges']
+exchange_groups = list(by_exchange.items())
+⋮----
+batch = exchange_groups[i:i + max_concurrent]
+⋮----
+# Fetch each exchange in parallel
+tasks = [
+⋮----
+batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+⋮----
+# Flatten results
+⋮----
+"""Fetch all combinations for a single exchange."""
+⋮----
+# Group by market type
+by_market_type = {}
+⋮----
+mt = combo['market_type']
+⋮----
+# Process each market type separately (need different exchange instances)
+⋮----
+# Create exchange instance
+exchange_class = self.EXCHANGE_CLASSES[exchange_name]
+market_type_enum = MarketType(market_type)
+⋮----
+exchange = exchange_class(market_type=market_type_enum)
+⋮----
+# Fetch each combination
+⋮----
+data_type = (
+⋮----
+result = await self.orchestrator.orchestrate_1h_incremental(
+⋮----
+# Rate limiting
+⋮----
+async def _cleanup(self)
+⋮----
+"""Cleanup resources on shutdown."""
+⋮----
+async def main()
+⋮----
+"""Main entry point."""
+service = IncrementalFetcherService()
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/coin_alyze_bootstrap.py">
+"""
+CoinAlyze Bootstrap Orchestrator - OHLC from Binance USDT only.
+Enhanced with timezone enforcement and deterministic symbol mapping.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CoinAlyzeBootstrapOrchestrator
+⋮----
+"""
+    Orchestrator for bootstrapping historical data from CoinAlyze.
+    OHLC: ONLY Binance USDT linear perpetual
+    OI: All supported exchanges
+    """
+⋮----
+def __init__(self, db: Database | None = None)
+⋮----
+async def __aenter__(self)
+⋮----
+"""Async context manager entry"""
+⋮----
+async def __aexit__(self, exc_type, exc_val, exc_tb)
+⋮----
+"""Async context manager exit"""
+⋮----
+data_types: list[str] = None,  # ["ohlc", "oi"]
+⋮----
+days: int = 365 * 3,  # 3 years
+⋮----
+"""
+        Bootstrap historical data for symbols from CoinAlyze.
+        
+        Args:
+            symbols: List of symbols to bootstrap (e.g., ["BTC", "ETH"])
+            data_types: Types of data to fetch ["ohlc", "oi"]
+            timeframes: Timeframes to fetch ["1m", "5m", "15m", "1h", "4h", "1d"]
+            days: Number of days of historical data to fetch
+            batch_size: Records per batch for storage
+            
+        Returns:
+            Dictionary with bootstrap results
+        """
+⋮----
+data_types = ["ohlc", "oi"]
+⋮----
+timeframes = ["1m", "5m", "15m", "1h", "4h", "1d"]
+⋮----
+# Validate inputs
+⋮----
+valid_data_types = ["ohlc", "oi"]
+⋮----
+# Use timezone-aware datetime boundaries
+end_date = TimezoneEnforcer.ensure_utc(datetime.now(UTC))
+start_date = end_date - timedelta(days=days)
+⋮----
+client = CoinalyzeClient()
+fetcher = CoinAlyzeFetcher(client)
+⋮----
+all_results = {}
+total_records = {"ohlc": 0, "oi": 0}
+⋮----
+# Fetch data from CoinAlyze
+symbol_results = await self._bootstrap_symbol(
+⋮----
+# Validate we got data
+symbol_total_records = 0
+⋮----
+records = symbol_results.get(data_type, {}).get(timeframe, [])
+⋮----
+# Validate timezone consistency
+⋮----
+# Always cleanup publishers
+⋮----
+# Summary with clear source information
+⋮----
+"""Bootstrap a single symbol with proper error handling."""
+results = {}
+⋮----
+type_results = {}
+⋮----
+records = await fetcher.fetch_ohlc_history(
+# Validate OHLC restriction - should only be Binance
+⋮----
+records = await fetcher.fetch_oi_history(
+⋮----
+# Store to appropriate table based on timeframe
+stored_count = await self._store_records(
+⋮----
+def _validate_ohlc_restriction(self, records: list, symbol: str, timeframe: str)
+⋮----
+"""Validate that OHLC data is only from Binance USDT."""
+⋮----
+"""Store records to appropriate timeframe-specific table."""
+⋮----
+# Determine target table based on timeframe
+⋮----
+table = f"market.ohlc_{timeframe}"
+conflict_keys = ['canonical_symbol', 'exchange', 'timeframe', 'ts']
+else:  # oi
+table = f"market.open_interest_{timeframe}"
+⋮----
+# Store using generic upsert
+stored_count = await self.db.upsert_from_model_batch(
+⋮----
+# Update metadata
+⋮----
+"""Update metadata with bootstrap progress."""
+⋮----
+timestamps = [r.ts for r in records]
+earliest_ts = min(timestamps)
+latest_ts = max(timestamps)
+⋮----
+async def get_publisher(self, domain: str, data_type: str, source: str) -> BaseKafkaPublisher
+⋮----
+"""Get or create a publisher for the specific topic."""
+key = f"{domain}.{data_type}.{source}"
+⋮----
+publisher = BaseKafkaPublisher(
+⋮----
+exchange=source,  # Backward compatibility
+⋮----
+"""Publish data to the appropriate Kafka topic."""
+⋮----
+publisher = await self.get_publisher(domain, data_type, source)
+⋮----
+# Publish in batches
+result = await publisher.publish_batch(records)
+⋮----
+async def _cleanup_publishers(self)
+⋮----
+"""Cleanup Kafka publishers."""
+⋮----
+# Global instance for easy access
+bootstrap_orchestrator = CoinAlyzeBootstrapOrchestrator()
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/download_history.py">
+# pipelines/orchestration/download_history.py
+"""
+Simple orchestration layer - replaces complex pipeline classes with functions.
+Freqtrade-style simple data downloading with market type support.
+UPDATED: Now uses canonical base assets and requires market_type parameter.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+pair: str,  # UPDATED: Now canonical base asset (e.g., "BTC")
+⋮----
+market_type: str | None = None,  # NEW: Market type parameter
+⋮----
+"""
+    Simple orchestration - download data for a single pair.
+    
+    Args:
+        exchange: BaseExchange instance with market type
+        pair: Canonical base asset (e.g., "BTC") - UPDATED
+        timeframe: Timeframe string (e.g., "1h", "5m")
+        data_type: Type of data to download (OHLC or OPEN_INTEREST)
+        since: Start datetime
+        until: End datetime (defaults to now)
+        market_type: Market type (e.g., "linear_perpetual", "inverse_perpetual") - NEW
+        limit: Maximum records to fetch
+
+    Returns:
+        List of OHLC or OpenInterest models
+    """
+registry = EnhancedSymbolRegistry('config/assets/crypto_universe.yaml')
+until = until or datetime.utcnow()
+⋮----
+# Use exchange's market type if not specified
+⋮----
+market_type = exchange.market_type.value
+⋮----
+# Get endpoint type
+⋮----
+endpoint = EndpointType.OHLC
+⋮----
+endpoint = EndpointType.OPEN_INTEREST
+⋮----
+# Get exchange-specific symbol with market type support - UPDATED
+exchange_symbol = registry.get_symbol(
+⋮----
+canonical=pair,  # Base asset
+exchange=exchange.exchange.value,  # Get string value from enum
+⋮----
+market_type=market_type  # REQUIRED: Market type
+⋮----
+pairs: list[str],  # UPDATED: Now canonical base assets (e.g., ["BTC"])
+⋮----
+"""
+    Batch download for multiple pairs with concurrency control.
+    UPDATED: Now uses canonical base assets and market type parameter.
+    
+    Args:
+        exchange: BaseExchange instance with market type
+        pairs: List of canonical base assets (e.g., ["BTC"]) - UPDATED
+        timeframe: Timeframe string
+        data_type: Type of data to download
+        since: Start datetime
+        until: End datetime
+        market_type: Market type (e.g., "linear_perpetual") - NEW
+        max_concurrent: Maximum concurrent downloads
+
+    Returns:
+        Dictionary mapping pair -> list of records
+    """
+semaphore = asyncio.Semaphore(max_concurrent)
+results = {}
+⋮----
+async def download_with_semaphore(pair)
+⋮----
+records = await download_pair_history(
+⋮----
+market_type=market_type  # NEW: Pass market type
+⋮----
+# Create all download tasks
+tasks = [
+⋮----
+# Execute concurrently
+completed = await asyncio.gather(*tasks, return_exceptions=True)
+⋮----
+# Process results
+⋮----
+"""
+    Backfill large date ranges with automatic batching.
+    UPDATED: Now uses canonical base assets and market type parameter.
+    
+    Args:
+        exchange: BaseExchange instance with market type
+        pair: Canonical base asset (e.g., "BTC") - UPDATED
+        timeframe: Timeframe string
+        data_type: Type of data
+        start_date: Start of backfill range
+        end_date: End of backfill range
+        market_type: Market type (e.g., "linear_perpetual") - NEW
+        batch_size: Records per batch (uses exchange default if None)
+
+    Returns:
+        Combined list of all records
+    """
+⋮----
+all_records = []
+current_start = start_date
+⋮----
+# Use exchange's batch size if not specified
+⋮----
+batch_size = exchange.max_limit_ohlc
+⋮----
+batch_size = exchange.max_limit_oi
+⋮----
+batch = await download_pair_history(
+⋮----
+market_type=market_type,  # NEW: Pass market type
+⋮----
+# Update current_start to last timestamp + 1ms
+last_ts = max(r.ts for r in batch)
+current_start = last_ts
+⋮----
+# Small delay to respect rate limits
+⋮----
+# Updated example usage function with new market type support
+async def example_usage()
+⋮----
+"""
+    Example showing how to use the orchestration functions with new canonical format.
+    """
+⋮----
+# NEW PATTERN with canonical base assets and market types:
+⋮----
+# Binance Linear Perpetual
+exchange_linear = BinanceExchange(market_type=MarketType.LINEAR_PERPETUAL)
+⋮----
+# Binance Inverse Perpetual (COIN-M)
+exchange_inverse = BinanceExchange(market_type=MarketType.INVERSE_PERPETUAL)
+⋮----
+# Bybit Linear
+exchange_bybit = BybitExchange(market_type=MarketType.LINEAR_PERPETUAL)
+⋮----
+# Download from Binance Linear
+ohlc_records_linear = await download_pair_history(
+⋮----
+pair="BTC",  # Canonical base asset
+⋮----
+market_type="linear_perpetual"  # Explicit market type
+⋮----
+# Download from Binance Inverse (COIN-M)
+ohlc_records_inverse = await download_pair_history(
+⋮----
+pair="BTC",  # Same canonical symbol
+⋮----
+market_type="inverse_perpetual"  # Different market type
+⋮----
+# Download multiple pairs from Bybit
+pairs = ["BTC"]  # Only BTC for now
+results = await download_multiple_pairs(
+⋮----
+market_type="linear_perpetual"  # Market type for all pairs
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/generic_orchestrator.py">
+"""
+Generic Orchestrator for ANY exchange implementing BaseExchange interface.
+Supports 3-pipeline architecture with enhanced metadata tracking.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class GenericOrchestrator
+⋮----
+"""
+    Generic orchestrator that works with ANY exchange implementing BaseExchange.
+    Supports incremental updates, backfills, and data quality validation.
+    
+    Key Features:
+    - Exchange-agnostic: Works with any BaseExchange implementation
+    - Smart incremental updates using metadata
+    - Backfill operations with progress tracking and resumption
+    - Automatic gap detection and quality validation
+    - Support for 3-pipeline architecture
+    """
+⋮----
+def __init__(self, db: Database)
+⋮----
+"""
+        Generic incremental update for any exchange and data type.
+        Uses metadata to determine what data needs to be fetched.
+        
+        Args:
+            exchange: BaseExchange instance
+            canonical_symbol: Base asset (e.g., "BTC")
+            timeframe: Timeframe string (e.g., "1h", "5m")
+            data_type: OHLC or OPEN_INTEREST
+            market_type: Market type (optional, uses exchange default)
+            lookback_hours: Hours to look back if no metadata exists
+            limit: Maximum records to fetch per request
+            
+        Returns:
+            Operation results with metrics
+        """
+exchange_name = exchange.exchange.value
+market_type = market_type or exchange.market_type.value
+⋮----
+operation_start = datetime.utcnow()
+⋮----
+# Get last timestamp from metadata for smart fetching
+last_ts = await self.db.get_last_timestamp(
+⋮----
+# Determine time range based on metadata
+end_time = datetime.utcnow()
+⋮----
+# Small overlap for safety and gap detection
+start_time = last_ts - timedelta(hours=1)
+⋮----
+# No metadata found, use configured lookback
+start_time = end_time - timedelta(hours=lookback_hours)
+⋮----
+# Get exchange-specific symbol
+endpoint = self._map_data_type_to_endpoint(data_type)
+exchange_symbol = self.registry.get_symbol(
+⋮----
+# Fetch data using generic method
+records = await self._fetch_data(
+⋮----
+# Store data using generic method
+stored_count = await self._store_data(
+⋮----
+# Update metadata with extraction progress
+⋮----
+duration = (datetime.utcnow() - operation_start).total_seconds()
+⋮----
+"""
+        Generic backfill for any exchange and data type.
+        Supports progress tracking and resumption.
+        
+        Args:
+            exchange: BaseExchange instance
+            canonical_symbol: Base asset (e.g., "BTC")
+            timeframe: Timeframe string
+            data_type: OHLC or OPEN_INTEREST
+            start_date: Backfill start date
+            end_date: Backfill end date
+            market_type: Market type (optional)
+            batch_size: Records per batch (uses exchange default if None)
+            max_concurrent: Maximum concurrent batches (for future use)
+            
+        Returns:
+            Backfill results with detailed metrics
+        """
+⋮----
+total_records = 0
+batches_processed = 0
+current_date = start_date
+⋮----
+# Check for existing backfill progress
+existing_progress = await self.db.get_backfill_progress(
+⋮----
+progress_data = existing_progress['progress']
+current_date = datetime.fromisoformat(progress_data['current_date'])
+total_records = progress_data.get('records_fetched', 0)
+⋮----
+# Use exchange's batch size if not specified
+⋮----
+batch_size = exchange.max_limit_ohlc
+⋮----
+batch_size = exchange.max_limit_oi
+⋮----
+# Initialize backfill progress
+backfill_progress = {
+⋮----
+# Get exchange-specific symbol once
+⋮----
+batch_start = datetime.utcnow()
+⋮----
+# Calculate batch end date (respect rate limits)
+⋮----
+# For OHLC, use larger batches
+batch_end = min(current_date + timedelta(days=7), end_date)
+⋮----
+# For OI, use smaller batches due to potential limits
+batch_end = min(current_date + timedelta(days=1), end_date)
+⋮----
+# Fetch batch
+⋮----
+# Store batch
+⋮----
+# Update progress
+⋮----
+# Move to next batch
+current_date = batch_end
+⋮----
+# Rate limiting between batches
+batch_duration = (datetime.utcnow() - batch_start).total_seconds()
+if batch_duration < 1.0:  # Ensure minimum delay
+⋮----
+# Mark backfill as complete
+⋮----
+total_duration = (datetime.utcnow() - operation_start).total_seconds()
+⋮----
+# Update metadata with failure
+⋮----
+"""Fetch data using appropriate exchange method."""
+⋮----
+"""Store data using appropriate table with conflict resolution."""
+⋮----
+# Map data_type to table and conflict keys
+table_config = {
+⋮----
+config = table_config[data_type]
+⋮----
+stored_count = await self.db.upsert_from_model_batch(
+⋮----
+"""Update metadata with extraction progress."""
+⋮----
+timestamps = [r.ts for r in records]
+earliest_ts = min(timestamps)
+latest_ts = max(timestamps)
+⋮----
+def _map_data_type_to_endpoint(self, data_type: MarketDataType) -> EndpointType
+⋮----
+"""Map MarketDataType to EndpointType for symbol resolution."""
+mapping = {
+⋮----
+"""
+        Perform health check for an exchange and symbol.
+        Verifies connectivity, symbol resolution, and basic data fetching.
+        """
+⋮----
+# Test symbol resolution
+⋮----
+# Test basic data fetch (last hour)
+⋮----
+start_time = end_time - timedelta(hours=1)
+⋮----
+# Check metadata
+</file>
+
+<file path="mnemo_quant/pipelines/orchestration/incremental_service.py">
+"""
+Incremental Fetcher Service
+Long-running service for continuous 5m data fetching using APScheduler.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class IncrementalFetcherService
+⋮----
+"""
+    Long-running service for continuous 5m data fetching.
+    
+    Uses existing CoreOrchestrator for:
+    - Metadata-based incremental fetching
+    - Kafka publishing
+    - Error handling
+    
+    Adds:
+    - APScheduler for 5m interval triggers
+    - Asset universe management from crypto_universe.yaml
+    - Per-exchange concurrency control
+    - Health monitoring
+    """
+⋮----
+EXCHANGE_CLASSES = {
+⋮----
+def __init__(self, config_path: str = "config/services/incremental_fetcher.yaml")
+⋮----
+def _load_config(self, path: str) -> dict
+⋮----
+async def start(self)
+⋮----
+"""Start the service with scheduler"""
+⋮----
+# Initialize DB and Orchestrator
+⋮----
+orch_config = OrchestrationConfig(
+⋮----
+# Start Health Check Server
+⋮----
+# Schedule Jobs
+interval_seconds = self.config['schedule']['interval_seconds']
+⋮----
+next_run_time=datetime.now() # Run immediately
+⋮----
+# Keep running until stopped
+⋮----
+async def stop(self)
+⋮----
+"""Graceful shutdown"""
+⋮----
+async def fetch_5m_all_exchanges(self)
+⋮----
+"""Triggered every 5 minutes - fetch data for all exchanges"""
+⋮----
+# Get active exchanges and symbols from registry
+# For now, we'll iterate over supported exchanges and fetch active symbols
+exchanges = self.EXCHANGE_CLASSES.keys()
+⋮----
+tasks = []
+sem = asyncio.Semaphore(self.config['concurrency']['max_concurrent_exchanges'])
+⋮----
+async def bounded_fetch(exchange_name)
+⋮----
+async def fetch_exchange(self, exchange_name: str)
+⋮----
+"""Fetch 5m data for one exchange using CoreOrchestrator"""
+⋮----
+# Instantiate exchange
+exchange_class = self.EXCHANGE_CLASSES[exchange_name]
+# Assuming linear_perpetual for now as per previous context, or we could make it configurable
+# The user plan implies fetching everything in the universe
+market_type = MarketType.LINEAR_PERPETUAL
+⋮----
+exchange = exchange_class(market_type=market_type)
+⋮----
+# Get active symbols for this exchange
+active_symbols = self.registry.get_active_symbols(
+⋮----
+canonical = symbol_config.canonical
+⋮----
+# Fetch OHLC
+⋮----
+# Fetch OI
+⋮----
+# Rate limit delay
+⋮----
+async def _start_health_server(self)
+⋮----
+"""Start simple health check HTTP server"""
+app = web.Application()
+⋮----
+runner = web.AppRunner(app)
+⋮----
+site = web.TCPSite(runner, '0.0.0.0', self.config['health']['port'])
+⋮----
+async def _health_check(self, request)
+⋮----
+# Setup logging
+⋮----
+service = IncrementalFetcherService()
+⋮----
+# Handle signals
+loop = asyncio.get_event_loop()
+⋮----
+def signal_handler()
+</file>
+
+<file path="mnemo_quant/pipelines/producers/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/pipelines/storage/oi_storage.py">
+logger = logging.getLogger(__name__)
+⋮----
+# Prometheus metrics
+STORED_RECORDS_TOTAL = Counter(
+STORE_ERRORS_TOTAL = Counter(
+MESSAGE_SIZE = Histogram(
+BATCH_PROCESSING_TIME = Histogram(
+⋮----
+class OIStoragePipeline
+⋮----
+def __init__(self, metrics_port: int = 8002, max_batch_size: int = 1000)
+⋮----
+"fetch.message.max.bytes": 10485760,  # 10MB max per message
+"max.partition.fetch.bytes": 52428800,  # 50MB max per partition
+⋮----
+async def start(self)
+⋮----
+"""Initialize connections"""
+⋮----
+async def stop(self)
+⋮----
+"""Cleanup connections"""
+⋮----
+# In src/mnemo_quant/pipelines/storage/oi_storage.py
+async def process_message(self, msg) -> OpenInterest | None
+⋮----
+record_data = json.loads(msg.value().decode("utf-8"))
+# Pydantic will automatically validate ISO timestamp strings
+record = OpenInterest.model_validate(record_data)
+⋮----
+async def consume_and_store(self, max_records: int = 1000)
+⋮----
+"""Consume and store records with proper batching"""
+batch: list[OpenInterest] = []
+processed_count = 0
+⋮----
+msg = self.consumer.poll(timeout=1.0)
+⋮----
+record = await self.process_message(msg)
+⋮----
+# Commit only after successful database operation
+⋮----
+# Don't commit offsets if database operation failed
+⋮----
+async def run_continuous(self)
+⋮----
+"""Run the pipeline continuously with backpressure control"""
+⋮----
+await asyncio.sleep(0.1)  # Small delay to prevent tight looping
+⋮----
+def run_sync(self)
+⋮----
+"""Synchronous entrypoint for CLI/Airflow."""
+parser = argparse.ArgumentParser(description="OI Storage Pipeline")
+⋮----
+args = parser.parse_args()
+⋮----
+pipeline = OIStoragePipeline()
+</file>
+
+<file path="mnemo_quant/pipelines/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/risk/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/strategies/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/utils/__init__.py">
+
+</file>
+
+<file path="mnemo_quant/utils/ccxt_utils.py">
+class ExchangeInstanceManager
+⋮----
+"""Manages multiple CCXT instances per exchange for different market types."""
+⋮----
+def __init__(self, exchange_config: dict)
+⋮----
+def _initialize_instances(self, config: dict)
+⋮----
+"""Creates instances for each market type."""
+⋮----
+binance_config = config['binance']
+# Create spot instance
+⋮----
+# Create USD-M futures instance
+⋮----
+# Create COIN-M futures instance
+⋮----
+def get_instance(self, exchange: str, market_type: str) -> ccxt.Exchange
+⋮----
+"""Returns appropriate instance for exchange and market type."""
+instance_key = f"{exchange}_{market_type}"
+⋮----
+def load_all_markets(self)
+⋮----
+"""Load markets for all instances and sync to symbol registry."""
+⋮----
+markets = instance.load_markets()
+# Sync to registry with market type context
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+async def discover_exchange_rest_methods(exchange_name: str, keyword: str)
+⋮----
+"""
+    Discover available REST methods for a given CCXT exchange containing the keyword.
+
+    Args:
+        exchange_name (str): The name of the exchange (e.g. "gateio", "bybit", "binance").
+        keyword (str): The keyword to filter methods (e.g. "open_interest", "ohlcv", "funding").
+
+    Returns:
+        list[str]: A list of matching method names.
+    """
+⋮----
+# Create exchange instance (no credentials needed for discovery)
+exchange_class = getattr(ccxt, exchange_name)
+exchange = exchange_class({
+⋮----
+# Get all callable methods in the exchange instance
+methods = [
+⋮----
+async def discover_exchange_methods(exchange_name: str, keyword: str)
+⋮----
+async def discover_ws_methods(exchange_name: str, keyword: str)
+⋮----
+"""
+    Discover available WebSocket (ccxt.pro) methods for a given exchange containing the keyword.
+
+    Args:
+        exchange_name (str): e.g. "gateio", "bybit", "binance"
+        keyword (str): e.g. "open_interest", "ticker", "orderbook"
+
+    Returns:
+        list[str]: Matching websocket methods (async watch functions)
+    """
+⋮----
+# Create WS exchange instance (no credentials needed for discovery)
+⋮----
+# List coroutine methods matching the keyword (e.g., "watch_open_interest")
+⋮----
+async def main()
+⋮----
+"""Run discovery demo."""
+rest_methods = await discover_exchange_rest_methods("gateio", "open_interest")
+</file>
+
+<file path="mnemo_quant/utils/config_loader.py">
+logger = logging.getLogger(__name__)
+⋮----
+class Environment(Enum)
+⋮----
+DEV = "dev"
+STAGING = "staging"
+PROD = "prod"
+⋮----
+class ConfigLoader
+⋮----
+"""Senior-grade config loader supporting DEV, STAGING, PROD environments."""
+⋮----
+_instance = None
+_config_cache: dict[str, Any] = {}
+⋮----
+def __new__(cls, *args, **kwargs)
+⋮----
+def __init__(self, config_dir: str = "/app/config")
+⋮----
+def _determine_base_path(self, config_dir: str) -> Path
+⋮----
+"""Determine the correct base path for configurations."""
+prod_paths = [
+⋮----
+Path(config_dir),  # Provided config_dir (e.g., /app/config)
+Path('/app/config'),  # Docker default
+Path.cwd() / 'config',  # Local development
+Path(__file__).parent.parent.parent / 'config',  # Module relative
+⋮----
+# Fallback: create config directory
+fallback = Path(config_dir)
+⋮----
+def _detect_environment(self) -> Environment
+⋮----
+"""Detect current environment."""
+env_str = os.environ.get('MNEMO_ENV', 'dev').lower()
+⋮----
+def load_global_config(self) -> dict[str, Any]
+⋮----
+"""Load global configuration."""
+global_path = self.base_path / 'global.yaml'
+⋮----
+def load_environment_config(self) -> dict[str, Any]
+⋮----
+"""Load environment-specific configuration."""
+env_file = f"{self.current_env.value}.yaml"
+env_path = self.base_path / 'environments' / env_file
+⋮----
+def _get_default_config(self) -> dict[str, Any]
+⋮----
+"""Get safe default configuration."""
+⋮----
+def get_merged_config(self) -> dict[str, Any]
+⋮----
+"""Get fully merged configuration."""
+base_config = self.load_global_config()
+env_config = self.load_environment_config()
+⋮----
+merged = self._deep_merge(base_config, env_config)
+⋮----
+def _deep_merge(self, base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]
+⋮----
+"""Recursively merge two dictionaries."""
+result = base.copy()
+⋮----
+class ConfigError(Exception)
+⋮----
+config_loader = ConfigLoader()
+</file>
+
+<file path="mnemo_quant/utils/dags_helpers.py">
+# airflow/dags/mnemo_quant/dag_helpers.py
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+"""
+    Factory function to create incremental DAGs for any data type.
+    """
+⋮----
+# Set default values
+⋮----
+default_args = {
+⋮----
+tags = ['incremental', data_type, timeframe]
+⋮----
+tags = tags + ['incremental', data_type, timeframe]
+⋮----
+dag_id = f'{data_type}_incremental_{timeframe}'
+description = description_template.format(data_type=data_type, timeframe=timeframe)
+⋮----
+dag = DAG(
+⋮----
+@task(dag=dag)
+    def ingest_incremental(**context) -> dict[str, Any]
+⋮----
+"""Generic incremental update for any data type using metadata."""
+⋮----
+async def run_incremental() -> dict[str, Any]
+⋮----
+db = Database()
+⋮----
+pipeline = ingestion_pipeline_factory()
+assets = assets_getter()
+⋮----
+successful_total = 0
+failed_total = 0
+failed_assets = []
+⋮----
+# Generic incremental update call
+records_count = await pipeline.incremental_update(
+⋮----
+@task(dag=dag)
+    def validate_freshness(ingest_metrics: dict[str, Any]) -> dict[str, Any]
+⋮----
+"""Validate data freshness using metadata for any data type."""
+⋮----
+async def validate_async() -> dict[str, Any]
+⋮----
+# Generic freshness check using data_type
+freshness_threshold = datetime.utcnow() - timedelta(minutes=lookback_minutes * 2)
+⋮----
+stale_count = await conn.fetchval("""
+⋮----
+# Also check last update time
+outdated_threshold = datetime.utcnow() - timedelta(minutes=lookback_minutes)
+outdated_count = await conn.fetchval("""
+⋮----
+validation_results = asyncio.run(validate_async())
+⋮----
+@task(dag=dag)
+    def handle_results(metrics: dict[str, Any]) -> dict[str, Any]
+⋮----
+"""Handle results and trigger alerts if needed."""
+⋮----
+# TODO: Add alerting logic here (Slack, email, etc.)
+⋮----
+# TODO: Trigger backfill for stale symbols
+⋮----
+# Set up task dependencies
+ingest_metrics = ingest_incremental()
+validation_results = validate_freshness(ingest_metrics)
+final_results = handle_results(validation_results)
+⋮----
+# Pre-configured factory functions for common data types
+⋮----
+def create_oi_incremental_dag(timeframe: str, schedule_interval: str, lookback_minutes: int = 60) -> DAG
+⋮----
+"""Factory function specifically for Open Interest incremental DAGs."""
+</file>
+
+<file path="mnemo_quant/utils/retry.py">
+logger = logging.getLogger(__name__)
+⋮----
+def retrier_async(max_retries: int = 3, initial_delay: float = 1.0)
+⋮----
+"""Async retrier decorator from Freqtrade pattern"""
+def decorator(func)
+⋮----
+@wraps(func)
+        async def wrapper(*args, **kwargs)
+⋮----
+last_exception = None
+⋮----
+last_exception = e
+⋮----
+delay = initial_delay * (2 ** attempt)
+</file>
+
+<file path="mnemo_quant/utils/symbols_utils.py">
+class CryptoSymbolRegistry
+⋮----
+"""Market-type aware symbol registry with exchange instance routing."""
+⋮----
+def __init__(self)
+⋮----
+self.symbols = {}  # canonical -> metadata with market_type
+self.exchange_instances = {}  # exchange_market_type -> instance
+⋮----
+def get_exchange_instance(self, canonical_symbol: str, exchange: str) -> ccxt.Exchange
+⋮----
+"""Returns correct CCXT instance for symbol's market type."""
+market_type = self._extract_market_type(canonical_symbol)
+instance_key = f"{exchange}_{market_type}"
+⋮----
+def get_exchange_symbol(self, canonical_symbol: str, exchange: str) -> str
+⋮----
+"""Maps canonical to exchange-specific symbol format."""
+# BTC/USDT:USDT@linear -> BTCUSDT (for binance_usdm)
+# BTC/USD:BTC@inverse -> BTCUSD_PERP (for binance_coinm)
+⋮----
+def normalize_symbol(self, exchange_symbol: str, exchange: str, market_type: str) -> str
+⋮----
+"""Reverse mapping: exchange-specific -> canonical."""
+# BTCUSDT (binance_usdm) -> BTC/USDT:USDT@linear
+</file>
+
+<file path="mnemo_quant/utils/timezone_utils.py">
+logger = logging.getLogger(__name__)
+⋮----
+class TimezoneEnforcer
+⋮----
+"""STRICT timezone enforcement - MANDATORY for aggregation accuracy"""
+⋮----
+@staticmethod
+    def ensure_utc(dt: datetime) -> datetime
+⋮----
+"""Convert any datetime to timezone-aware UTC"""
+⋮----
+@staticmethod
+    def align_to_timeframe(dt: datetime, timeframe: str) -> datetime
+⋮----
+"""Align to precise timeframe boundaries for aggregation"""
+dt = TimezoneEnforcer.ensure_utc(dt)
+⋮----
+timeframe_map = {
+⋮----
+@staticmethod
+    def validate_timezone_consistency(records: list) -> bool
+⋮----
+"""Validate that all records have timezone-aware UTC timestamps"""
+</file>
+
+<file path="mnemo_quant/__init__.py">
+
+</file>
+
+<file path="mnemo_quant_api/health.py">
+logger = logging.getLogger(__name__)
+⋮----
+router = APIRouter()
+⋮----
+async def check_database() -> bool
+⋮----
+"""Check database connectivity."""
+⋮----
+# This will be implemented after we set up async database layer
+⋮----
+async def check_kafka() -> bool
+⋮----
+"""Check Kafka connectivity."""
+⋮----
+# This will be implemented after we set up Kafka properly
+⋮----
+async def check_redis() -> bool
+⋮----
+"""Check Redis connectivity."""
+⋮----
+# This will be implemented after we set up Redis properly
+⋮----
+@router.get("/health")
+async def health_check() -> dict[str, Any]
+⋮----
+"""Comprehensive health check endpoint."""
+health_status = {
+⋮----
+# If any service is unhealthy, return 503
+⋮----
+@router.get("/ready")
+async def readiness_check() -> dict[str, Any]
+⋮----
+"""Readiness check for Kubernetes."""
+</file>
+
+<file path="mnemo_quant_api/main.py">
+from mnemo_quant_api.health import router as health_router  # Import shared router
+⋮----
+# from .routes.oi_queries import router as oi_router  # Future additions
+⋮----
+app = FastAPI(title="Mnemo Quant API", version="0.1.0")
+app.include_router(health_router, prefix="")  # /health directly
+# app.include_router(oi_router, prefix="/api")  # Example future route
+⋮----
+@app.get("/")
+async def root()
+</file>
+
+<file path="quant_framework/infrastructure/config/__init__.py">
+"""
+Configuration infrastructure.
+Re-exports from existing config utilities.
+"""
+⋮----
+__all__ = ["config_registry", "CCXTExchangeMapper", "EnhancedSymbolRegistry"]
+</file>
+
+<file path="quant_framework/infrastructure/database/__init__.py">
+"""
+Database infrastructure (placeholder for future implementation).
+"""
+</file>
+
+<file path="quant_framework/infrastructure/__init__.py">
+"""
+Infrastructure modules.
+"""
+</file>
+
+<file path="quant_framework/ingestion/adapters/ccxt_plugin/__init__.py">
+"""
+CCXT plugin adapters for capability-based ingestion.
+
+This module provides a thin wrapper that treats CCXT as a plugin rather
+than a core dependency. Specific capability adapters (OHLCV, Open
+Interest, etc.) inherit from this base and implement the relevant ports.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CCXTAdapterBase(BaseAdapter)
+⋮----
+"""Base class for CCXT-backed adapters used as plugins."""
+⋮----
+client_type: ClientType = ClientType.WRAPPER
+connection_type: ConnectionType = ConnectionType.REST
+⋮----
+def __init__(self, client: Any, *args: Any, **kwargs: Any)
+⋮----
+async def connect(self) -> None
+⋮----
+"""Initialize CCXT client markets lazily."""
+⋮----
+load_markets = getattr(self.client, "load_markets", None)
+⋮----
+async def close(self) -> None
+⋮----
+"""Close CCXT client if supported."""
+⋮----
+close_fn = getattr(self.client, "close", None)
+⋮----
+maybe_coro = close_fn()
+⋮----
+except Exception as exc:  # pragma: no cover - best-effort cleanup
+</file>
+
+<file path="quant_framework/ingestion/adapters/ccxt_plugin/ohlcv_adapter.py">
+"""
+CCXT OHLCV capability adapter.
+
+Implements the OHLCVPort using a provided CCXT client.
+"""
+⋮----
+class CCXTOHLCVAdapter(CCXTAdapterBase, OHLCVPort)
+⋮----
+"""CCXT-backed OHLCV adapter implementing OHLCVPort."""
+⋮----
+provider: DataProvider
+supported_asset_classes = {AssetClass.CRYPTO}
+capabilities = {OHLCVPort}
+⋮----
+fetch = getattr(self.client, "fetch_ohlcv", None) or getattr(
+⋮----
+since = int(start.timestamp() * 1000) if start else None
+# CCXT does not support explicit end; rely on limit+since; upstream orchestrator will paginate
+result = await asyncio.to_thread(
+</file>
+
+<file path="quant_framework/ingestion/adapters/ccxt_plugin/open_interest_adapter.py">
+"""
+CCXT Open Interest capability adapter.
+
+Implements OpenInterestPort using a provided CCXT client (or compatible wrapper).
+"""
+⋮----
+class CCXTOpenInterestAdapter(CCXTAdapterBase, OpenInterestPort)
+⋮----
+"""CCXT-backed open interest adapter implementing OpenInterestPort."""
+⋮----
+provider: DataProvider
+supported_asset_classes = {AssetClass.CRYPTO}
+capabilities = {OpenInterestPort}
+⋮----
+fetch = getattr(self.client, "fetch_open_interest", None) or getattr(
+⋮----
+since = int(start.timestamp() * 1000) if start else None
+result = await asyncio.to_thread(
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/__init__.py">
+
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/base.py">
+class CoinalyzeAdapterBase(BaseAdapter)
+⋮----
+"""Base adapter for CoinAlyze API.
+
+    CoinAlyze is a multi-venue wrapper that provides access to:
+    - BINANCE (spot)
+    - BINANCE_USDM (linear perpetuals/futures)
+    - BINANCE_COINM (inverse perpetuals/futures)
+    - BYBIT (unified)
+    - GATEIO (unified)
+    - HUOBI (unified)
+    """
+⋮----
+# Data lineage
+venue: DataVenue  # Set per-instance based on instrument
+wrapper = WrapperImplementation.COINALYZE
+⋮----
+# Technical implementation
+client_type = ClientType.WRAPPER
+connection_type = ConnectionType.REST
+⋮----
+# CoinAlyze supports crypto only
+supported_asset_classes = {AssetClass.CRYPTO}
+⋮----
+# Multi-venue support flag
+supports_multiple_venues = True  # Used in validate_instrument()
+⋮----
+def __init__(self, client: CoinalyzeClient, *args, **kwargs)
+⋮----
+# venue is set per-instrument in fetch methods
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/client.py">
+from .key_rotator import KeyRotator  # new
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class APIKeyManager
+⋮----
+"""Manage coinalyze API keys with rate limiting."""
+⋮----
+def __init__(self, api_keys: list[str], rate_limit: int, request_interval: float)
+⋮----
+self.rate_limit = rate_limit  # Calls per minute per key
+self.request_interval = request_interval  # Seconds between calls
+⋮----
+def get_next_key(self) -> str | None
+⋮----
+"""Get next available key or None if rate limit reached."""
+⋮----
+key = self.api_keys[self.current_key_index]
+usage = self.key_usage[key]
+now = time.time()
+# Remove timestamps older than 60s
+⋮----
+def get_headers(self) -> dict[str, str]
+⋮----
+"""Return headers with next available key."""
+key = self.get_next_key()
+⋮----
+class CoinalyzeClient
+⋮----
+"""Async client for coinalyze API."""
+⋮----
+def __init__(self)
+⋮----
+keys = settings.coinalyze.api_keys
+⋮----
+async def __aenter__(self)
+⋮----
+async def __aexit__(self, exc_type, exc_val, exc_tb)
+⋮----
+self.session = None  # Clear the reference
+⋮----
+async def fetch_data_async(self, endpoint: str, params: dict) -> list[dict]
+⋮----
+"""
+        Fetch data from coinalyze API with intelligent retry logic.
+
+        Args:
+            endpoint: API endpoint to call
+            params: Query parameters for the request
+
+        Returns:
+            Parsed JSON response data
+
+        Raises:
+            Various CoinAlyzeAPIError subclasses based on error type
+        """
+⋮----
+url = f"{self.base_url}/{endpoint}"
+max_retries = 3
+⋮----
+# Log request details for debugging
+⋮----
+headers = await self.key_manager.get_headers()
+⋮----
+# Capture response body for diagnostics
+response_text = await response.text()
+⋮----
+# Success - parse and validate response
+⋮----
+data = (
+⋮----
+# If already have text, try to parse it
+⋮----
+data = json.loads(response_text)
+⋮----
+# Validate response structure
+⋮----
+# Error response - log details and classify error
+⋮----
+)  # First 500 chars
+⋮----
+# Import here to avoid circular imports
+⋮----
+# Get retry-after header if present
+retry_after = response.headers.get("Retry-After")
+⋮----
+# Map to specific exception
+error = CoinAlyzeErrorMapper.map_error(
+⋮----
+# Check if error is retryable
+⋮----
+# Non-retryable error - fail immediately
+⋮----
+# Retryable error - check if we have attempts left
+⋮----
+sleep_time = RetryHandler.get_retry_delay(
+⋮----
+# Out of retries
+⋮----
+# Network error
+⋮----
+sleep_time = 2**attempt  # Exponential backoff
+⋮----
+# Should not reach here, but just in case
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/error_mapper.py">
+"""
+CoinAlyze Error Mapper
+
+Maps HTTP status codes and response bodies to specific exception types,
+providing context-rich error messages for debugging.
+"""
+⋮----
+class CoinAlyzeErrorMapper
+⋮----
+"""Maps HTTP status codes to appropriate exception types."""
+⋮----
+@staticmethod
+    def extract_error_message(response_body: Any) -> str
+⋮----
+"""Extract error message from response body."""
+⋮----
+# Try common error message keys
+⋮----
+"""
+        Map HTTP status code to specific exception with context.
+        
+        Args:
+            status_code: HTTP status code
+            response_body: Response body (dict, str, or other)
+            endpoint: API endpoint that was called
+            retry_after: Retry-After header value if present
+            
+        Returns:
+            Appropriate CoinAlyzeAPIError subclass instance
+        """
+error_msg = CoinAlyzeErrorMapper.extract_error_message(response_body)
+⋮----
+retry_after_int = None
+⋮----
+retry_after_int = int(retry_after)
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/exceptions.py">
+"""
+CoinAlyze API Exception Hierarchy
+
+Provides specific exception types for different CoinAlyze API error scenarios,
+enabling proper error classification and handling downstream.
+"""
+⋮----
+class CoinAlyzeAPIError(Exception)
+⋮----
+"""Base exception for all CoinAlyze API errors."""
+⋮----
+def __init__(self, message: str, status_code: int | None = None, endpoint: str | None = None)
+⋮----
+class BadRequestError(CoinAlyzeAPIError)
+⋮----
+"""400 - Bad parameter(s) in the request."""
+⋮----
+class AuthenticationError(CoinAlyzeAPIError)
+⋮----
+"""401 - Invalid or missing API key."""
+⋮----
+class NotFoundError(CoinAlyzeAPIError)
+⋮----
+"""404 - Resource not found (symbol, endpoint, or data unavailable)."""
+⋮----
+class RateLimitError(CoinAlyzeAPIError)
+⋮----
+"""429 - Too many requests, rate limit exceeded."""
+⋮----
+def __init__(self, message: str, retry_after: int | None = None, **kwargs)
+⋮----
+class ServerError(CoinAlyzeAPIError)
+⋮----
+"""500+ - Server-side error."""
+⋮----
+class ValidationError(CoinAlyzeAPIError)
+⋮----
+"""Response validation failed."""
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/key_rotator.py">
+HEAD = "api_key"  # header / query name required by Coinalyze
+MAX_PER_KEY = 39  # stay just under 40
+WINDOW = 60
+⋮----
+class KeyRotator
+⋮----
+"""
+    Thread-safe API-key rotator for Coinalyze.
+    Keeps ≤ N keys in a ring, tracks per-key calls in Redis (or memory),
+    auto-evicts exhausted keys and refreshes the ring when every key is hot.
+    Usage:
+        rotator = KeyRotator(["key1", "key2", "key3"], redis)  # redis=None is OK
+        headers = await rotator.get_headers()  # blocks until a key is free
+    """
+⋮----
+def __init__(self, keys: list[str])
+⋮----
+self._local: dict[str, deque[float]] = {}  # fallback if redis absent
+⋮----
+# ---------- public ----------
+⋮----
+async def get_headers(self) -> dict[str, str]
+⋮----
+"""Return headers dict with an available key; wait if necessary."""
+⋮----
+key = await self._next_available_key()
+⋮----
+await asyncio.sleep(0.5)  # spin politely
+⋮----
+# ---------- internal ----------
+⋮----
+async def _next_available_key(self) -> str | None
+⋮----
+now = time.time()
+⋮----
+key = self._keys[0]
+⋮----
+# all keys exhausted – refresh ring (could fetch new keys here)
+⋮----
+async def _call_count(self, key: str, now: float) -> int
+⋮----
+"""Number of calls made with `key` in the last 60 s."""      # memory fallback
+dq = self._local.setdefault(key, deque(maxlen=MAX_PER_KEY * 2))
+⋮----
+async def _record_call(self, key: str) -> None
+⋮----
+async def _refresh_keys(self) -> None
+⋮----
+"""
+        Replenish the ring – for now just re-queue the same keys
+        (you could fetch new keys from a secret store here).
+        """
+await asyncio.sleep(WINDOW / 2)  # wait half window
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/mappers.py">
+# quant_framework/ingestion/adapters/coinalyze_plugin/mappers.py
+⋮----
+COINALYZE_INTERVAL_MAP = {
+⋮----
+def get_coinalyze_interval(timeframe: str) -> str
+⋮----
+"""Map internal timeframe to CoinAlyze interval"""
+⋮----
+def get_coinalyze_symbol(instrument: Instrument) -> str
+⋮----
+"""
+    One-line wrapper around your proven registry.
+    Takes Instrument → CoinAlyze symbol format
+    """
+# Map venue to exchange name
+exchange = instrument.venue.value.replace("_usdm", "").replace("_coinm", "")
+⋮----
+# Determine market type and settlement
+market_type = (
+settlement = (
+⋮----
+# Use your battle-tested registry
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/ohlcv_adapter.py">
+"""CoinAlyze OHLCV Adapter - Fetches OHLCV data from CoinAlyze API."""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CoinalyzeOHLCVAdapter(CoinAlyzeAdapterBase, OHLCVPort)
+⋮----
+"""OHLCV data from CoinAlyze API."""
+⋮----
+capabilities = {OHLCVPort}
+⋮----
+"""
+        Fetch raw OHLCV data from CoinAlyze.
+
+        Args:
+            instrument: Instrument with venue, symbol, etc.
+            timeframe: Timeframe string (e.g., "1h", "5m")
+            start: Start datetime
+            end: End datetime
+            limit: Maximum number of records (optional)
+
+        Returns:
+            Raw data from CoinAlyze API (list of dicts with "history" key)
+        """
+⋮----
+# Set venue for this fetch (logging/tracking purposes)
+⋮----
+# Get CoinAlyze symbol (uses your proven registry)
+symbol = get_coinalyze_symbol(instrument)
+⋮----
+# Map timeframe
+interval = get_coinalyze_interval(timeframe)
+⋮----
+# Build request parameters
+params = {
+⋮----
+# Fetch via client (your existing client.py)
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/open_interest_adapter.py">
+"""CoinAlyze Open Interest Adapter - Fetches OI data from CoinAlyze API."""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CoinalyzeOpenInterestAdapter(CoinAlyzeAdapterBase, OpenInterestPort)
+⋮----
+"""Open Interest data from CoinAlyze API."""
+⋮----
+capabilities = {OpenInterestPort}
+⋮----
+"""
+        Fetch raw Open Interest data from CoinAlyze.
+
+        Args:
+            instrument: Instrument with venue, symbol, etc.
+            timeframe: Timeframe string (e.g., "1h", "5m")
+            start: Start datetime
+            end: End datetime
+            limit: Maximum number of records (optional)
+
+        Returns:
+            Raw OI data from CoinAlyze API (list of dicts with "history" key)
+        """
+⋮----
+symbol = get_coinalyze_symbol(instrument)
+interval = get_coinalyze_interval(timeframe)
+⋮----
+params = {
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/response_validator.py">
+"""
+CoinAlyze Response Validator
+
+Validates API response structure to ensure schema compliance before processing.
+Helps catch data quality issues early.
+"""
+⋮----
+class ResponseValidator
+⋮----
+"""Validates CoinAlyze API response structures."""
+⋮----
+@staticmethod
+    def validate_ohlc_response(data: Any) -> tuple[bool, str]
+⋮----
+"""
+        Validate OHLC response structure.
+        
+        Expected format:
+        [
+            {
+                "symbol": "BTCUSDT_PERP.A",
+                "history": [
+                    {"t": timestamp, "o": open, "h": high, "l": low, "c": close, "v": volume},
+                    ...
+                ]
+            },
+            ...
+        ]
+        
+        Args:
+            data: Response data to validate
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+⋮----
+# Empty list is valid (no data for the range)
+⋮----
+# Validate history entries (if not empty)
+⋮----
+first_entry = item['history'][0]
+required_fields = ['t', 'o', 'h', 'l', 'c']
+⋮----
+@staticmethod
+    def validate_oi_response(data: Any) -> tuple[bool, str]
+⋮----
+"""
+        Validate Open Interest response structure.
+        
+        OI uses the same structure as OHLC (OHLC format where 'c' is the OI value).
+        
+        Args:
+            data: Response data to validate
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+# OI response has same structure as OHLC
+⋮----
+@staticmethod
+    def validate_response(endpoint: str, data: Any) -> tuple[bool, str]
+⋮----
+"""
+        Dispatch validation based on endpoint.
+        
+        Args:
+            endpoint: API endpoint name
+            data: Response data to validate
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+⋮----
+# Unknown endpoint, accept any data
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/retry_handler.py">
+"""
+CoinAlyze Retry Handler
+
+Intelligent retry logic that distinguishes between retryable errors
+(rate limits, server errors) and non-retryable errors (bad requests, not found).
+"""
+⋮----
+class RetryHandler
+⋮----
+"""Determines retry behavior for different error types."""
+⋮----
+# Status codes that should be retried (temporary failures)
+RETRYABLE_STATUS_CODES = (429, 500, 502, 503, 504)
+⋮----
+# Status codes that should NOT be retried (permanent failures)
+NON_RETRYABLE_STATUS_CODES = (400, 401, 404)
+⋮----
+@classmethod
+    def should_retry(cls, status_code: int) -> bool
+⋮----
+"""
+        Determine if an error should be retried.
+        
+        Args:
+            status_code: HTTP status code
+            
+        Returns:
+            True if error is retryable, False otherwise
+        """
+# Explicit non-retryable errors fail immediately
+⋮----
+# Explicit retryable errors should be retried
+⋮----
+# Unknown 5xx errors should be retried as server issues
+⋮----
+# All other errors (2xx success, 3xx redirects, other 4xx) should not retry
+⋮----
+"""
+        Calculate retry delay with exponential backoff.
+        
+        Args:
+            attempt: Current retry attempt (0-indexed)
+            status_code: HTTP status code
+            retry_after: Retry-After header value if present
+            
+        Returns:
+            Number of seconds to wait before retrying
+        """
+# Honor Retry-After header for rate limits
+⋮----
+# Exponential backoff: 2^attempt
+base_delay = 2 ** attempt
+⋮----
+# Different max delays for different error types
+⋮----
+# Rate limits: allow up to 60s delay
+max_delay = 60
+⋮----
+# Server errors: max 30s delay
+max_delay = 30
+</file>
+
+<file path="quant_framework/ingestion/adapters/coinalyze_plugin/symbol_registry.py">
+logger = logging.getLogger(__name__)
+⋮----
+class CoinAlyzeSymbolRegistry
+⋮----
+"""
+    Exchange-specific symbol mapping for CoinAlyze API.
+
+    Each exchange has different symbol format conventions:
+    - Binance (A): BTCUSDT_PERP.A, BTCBUSD_PERP.A, BTCUSDC_PERP.A, BTCUSD_PERP.A (inverse)
+    - Bybit (6): BTCUSDT.6 (no _PERP), BTCUSDC.6, BTCUSD.6 (inverse)
+    - Gate.io (Y): BTC_USDT.Y (underscore separator), BTC_USD.Y (inverse)
+    - Huobi (4): BTCUSDT_PERP.4, BTCUSD.4 (inverse)
+
+    Settlement currency "NATIVE" is used for inverse perpetuals (COIN-M futures).
+    """
+⋮----
+# Official CoinAlyze exchange codes from API
+# Source: curl https://api.coinalyze.net/v1/exchanges
+COINALYZE_EXCHANGE_CODES = {
+⋮----
+def __init__(self)
+⋮----
+"""
+        Binance symbol formats:
+        - Linear USDT: BTCUSDT_PERP.A
+        - Linear BUSD: BTCBUSD_PERP.A
+        - Linear USDC: BTCUSDC_PERP.A
+        - Inverse (NATIVE): BTCUSD_PERP.A (COIN-M futures)
+        """
+base = base_asset.upper()
+⋮----
+# Default to USDT
+⋮----
+# Based on pattern, try with _PERP suffix
+⋮----
+"""
+        Bybit symbol formats (NO _PERP suffix):
+        - Linear USDT: BTCUSDT.6 ✅ (confirmed working)
+        - Linear USDC: BTCUSDC.6
+        - Inverse (NATIVE): BTCUSD.6 ✅ (confirmed working)
+        """
+⋮----
+"""
+        Gate.io symbol formats (underscore separator):
+        - Linear USDT: BTC_USDT.Y ✅ (confirmed working)
+        - Linear USDC: BTC_USDC.Y (if available)
+        - Inverse (NATIVE): BTC_USD.Y
+        """
+⋮----
+"""
+        Huobi symbol formats:
+        - Linear USDT: BTCUSDT_PERP.4 ✅ (confirmed working)
+        - Linear USDC: BTCUSDC_PERP.4 (if available)
+        - Inverse (NATIVE): BTCUSD.4
+        """
+⋮----
+"""
+        OKX symbol formats (needs testing):
+        - Linear USDT: BTCUSDT_PERP.3 (assumed)
+        - Inverse: BTCUSD.3 (assumed)
+        """
+⋮----
+"""
+        Deribit symbol formats (needs testing):
+        - Inverse: BTC-USD.2 or BTC_USD.2 (assumed)
+        """
+⋮----
+"""
+        Generate CoinAlyze symbol using exchange-specific formatters.
+
+        Args:
+            base_asset: Base asset (e.g., "BTC")
+            exchange: Exchange name (e.g., "binance")
+            market_type: "linear_perpetual" or "inverse_perpetual"
+            settlement_currency: "USDT", "USDC", "BUSD", or "NATIVE" for inverse
+
+        Returns:
+            CoinAlyze symbol string (e.g., "BTCUSDT_PERP.A")
+        """
+exchange_lower = exchange.lower()
+⋮----
+# Route to exchange-specific formatter
+⋮----
+"""Get all possible CoinAlyze symbols for a base asset"""
+symbols = []
+⋮----
+include_exchanges = ["binance", "bybit", "gateio", "huobi"]
+⋮----
+include_market_types = ["linear_perpetual", "inverse_perpetual"]
+⋮----
+# Try USDT
+symbol_usdt = self.get_coinalyze_symbol(
+⋮----
+# USDC for supported exchanges
+⋮----
+symbol_usdc = self.get_coinalyze_symbol(
+⋮----
+# BUSD for Binance
+⋮----
+symbol_busd = self.get_coinalyze_symbol(
+⋮----
+symbol = self.get_coinalyze_symbol(
+⋮----
+# Global instance
+coin_alyze_registry = CoinAlyzeSymbolRegistry()
+</file>
+
+<file path="quant_framework/ingestion/adapters/__init__.py">
+"""
+Capability-based adapters package.
+Exports core BaseAdapter and CCXT plugin capabilities.
+"""
+⋮----
+__all__ = [
+</file>
+
+<file path="quant_framework/ingestion/adapters/base.py">
+"""
+Enhanced base adapter with asset-agnostic, capability-based design.
+
+Clarified data lineage through explicit venue + wrapper tracking.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class BaseAdapter(ABC)
+⋮----
+"""
+    Enhanced base adapter supporting all asset classes and capability-based design.
+
+    Clarifies data lineage through explicit venue + wrapper tracking:
+    - venue: WHERE the data originates (the actual exchange/source)
+    - wrapper: HOW we access it (CCXT, CoinAlyze, Yahoo Finance, etc.)
+
+    Key improvements over old BaseAdapter:
+    1. Asset-agnostic: Works with any asset class via DataVenue enum
+    2. Capability-based: Adapters declare which ports they implement
+    3. Instrument-centric: Uses Instrument model instead of string symbols
+    4. Metadata-rich: Exposes venue, wrapper, client_type, connection_type
+    5. Layer separation: Returns raw data; no preprocessing/normalization
+    6. Clear lineage: Explicit tracking of data source and access method
+
+    Attributes:
+        venue: Data venue (BINANCE_USDM, BYBIT, ICE_DATA, etc.) - WHERE data comes from
+        wrapper: Wrapper implementation (COINALYZE, CCXT, YAHOO_FINANCE, NONE) - HOW we access it
+        client_type: Type of client implementation (WRAPPER, NATIVE, etc.)
+        connection_type: Network protocol (REST, WEBSOCKET, etc.)
+        supported_asset_classes: Set of AssetClass values this adapter supports
+        capabilities: Set of port classes this adapter implements
+
+    Examples:
+        # CoinAlyze adapter accessing Binance USD-M
+        class CoinalyzeOHLCVAdapter(BaseAdapter):
+            venue = DataVenue.BINANCE_USDM  # Can also be set per-instance
+            wrapper = WrapperImplementation.COINALYZE
+            client_type = ClientType.WRAPPER
+            connection_type = ConnectionType.REST
+
+        # CCXT adapter accessing Bybit
+        class CCXTOHLCVAdapter(BaseAdapter):
+            venue = DataVenue.BYBIT
+            wrapper = WrapperImplementation.CCXT
+            client_type = ClientType.WRAPPER
+            connection_type = ConnectionType.REST
+    """
+⋮----
+# ========== DATA LINEAGE (NEW: Clarified) ==========
+venue: DataVenue  # WHERE: The actual source
+wrapper: WrapperImplementation  # HOW: Access method
+⋮----
+# ========== TECHNICAL IMPLEMENTATION ==========
+client_type: ClientType
+connection_type: ConnectionType
+⋮----
+# ========== CAPABILITIES ==========
+supported_asset_classes: set[AssetClass] = set()
+capabilities: set[type] = set()
+⋮----
+"""Initialize adapter state and credentials."""
+⋮----
+@abstractmethod
+    async def connect(self) -> None
+⋮----
+"""Establish connection to the data provider (idempotent)."""
+⋮----
+@abstractmethod
+    async def close(self) -> None
+⋮----
+"""Close connection and clean up resources (idempotent)."""
+⋮----
+def supports_asset_class(self, asset_class: AssetClass) -> bool
+⋮----
+"""Check if this adapter supports the given asset class."""
+⋮----
+def supports_capability(self, port_type: type) -> bool
+⋮----
+"""Check if this adapter implements the given port."""
+⋮----
+def validate_instrument(self, instrument: Instrument) -> bool
+⋮----
+"""Validate if instrument is supported by this adapter.
+
+        Checks:
+        1. Asset class support
+        2. Venue match (with flexibility for AGGREGATED venues)
+        3. Wrapper match (must match adapter's wrapper)
+        4. Instrument is active
+        """
+# Check asset class
+⋮----
+# Check venue match (with flexibility for AGGREGATED)
+# Adapters that access multiple venues (like CoinAlyze) should allow any venue
+⋮----
+# Multi-venue adapters (CoinAlyze, CCXT) - venue is validated elsewhere
+⋮----
+# Check wrapper match (strict - wrapper must match)
+⋮----
+# Check active status
+⋮----
+async def __aenter__(self)
+⋮----
+async def __aexit__(self, exc_type, exc_val, exc_tb)
+⋮----
+def __repr__(self) -> str
+</file>
+
+<file path="quant_framework/ingestion/connectors/__init__.py">
+"""
+Connectors for market data providers.
+"""
+</file>
+
+<file path="quant_framework/ingestion/connectors/rest.py">
+"""
+REST connectors for market data ingestion.
+Shared CCXT utilities and HTTP client wrappers.
+"""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class RestConnector
+⋮----
+"""
+    REST connector for HTTP-based data fetching.
+    Currently a placeholder for future abstraction of CCXT HTTP client.
+    """
+⋮----
+def __init__(self, timeout: int = 30)
+⋮----
+"""Initialize REST connector."""
+⋮----
+async def __aenter__(self)
+⋮----
+"""Async context manager entry."""
+⋮----
+async def __aexit__(self, exc_type, exc_val, exc_tb)
+⋮----
+"""Async context manager exit."""
+⋮----
+"""Perform GET request."""
+</file>
+
+<file path="quant_framework/ingestion/factories/adapter_factory.py">
+"""
+Adapter factory for capability-based ingestion.
+
+Creates adapters based on data provider and desired class.
+"""
+⋮----
+AdapterBuilder = Callable[..., BaseAdapter]
+⋮----
+class AdapterFactory
+⋮----
+"""Registry-driven factory for adapters."""
+⋮----
+def __init__(self) -> None
+⋮----
+def register(self, provider: DataProvider, builder: AdapterBuilder) -> None
+⋮----
+def create(self, provider: DataProvider, *args: Any, **kwargs: Any) -> BaseAdapter
+⋮----
+def available_providers(self) -> list[DataProvider]
+</file>
+
+<file path="quant_framework/ingestion/factories/preprocessor_factory.py">
+"""
+Preprocessor factory for provider-specific quirks.
+"""
+⋮----
+PreprocessorBuilder = Callable[..., DataPreprocessor]
+⋮----
+class PreprocessorFactory
+⋮----
+"""Registry-driven factory for preprocessors."""
+⋮----
+def __init__(self) -> None
+⋮----
+def register(self, provider: DataProvider, builder: PreprocessorBuilder) -> None
+⋮----
+def create(self, provider: DataProvider, *args: Any, **kwargs: Any) -> DataPreprocessor
+⋮----
+def available_providers(self) -> list[DataProvider]
+</file>
+
+<file path="quant_framework/ingestion/models/__init__.py">
+"""Ingestion data models."""
+</file>
+
+<file path="quant_framework/ingestion/models/enums.py">
+"""
+Foundational enums for multi-asset, pluggable ingestion framework.
+
+These enums support asset-agnostic design and decouple the framework from specific
+data providers (CCXT, Bloomberg, etc.).
+"""
+⋮----
+class DataProvider(str, Enum)
+⋮----
+"""
+    Multi-asset data provider enum.
+    
+    Replaces the crypto-specific Exchange enum to support equities, commodities,
+    forex, and other asset classes beyond cryptocurrency.
+    """
+# Cryptocurrency Exchanges
+BINANCE = "binance"
+BYBIT = "bybit"
+GATEIO = "gateio"
+HUOBI = "huobi"
+BITGET = "bitget"
+OKX = "okx"
+KRAKEN = "kraken"
+COINBASE = "coinbase"
+⋮----
+# Traditional Market Data Providers
+ICE = "ice"  # ICE Data Services
+BLOOMBERG = "bloomberg"
+REFINITIV = "refinitiv"
+REUTERS = "reuters"
+FACTSET = "factset"
+⋮----
+# Forex Providers
+OANDA = "oanda"
+FXCM = "fxcm"
+⋮----
+# Commodity Providers
+CME = "cme"
+⋮----
+# Generic
+INTERNAL = "internal"  # Internal data generation
+FILE = "file"  # File-based data
+⋮----
+class ClientType(str, Enum)
+⋮----
+"""
+    Type of client implementation used by adapter.
+    
+    Distinguishes between different integration patterns:
+    - WRAPPER: Uses third-party wrapper (e.g., CCXT)
+    - NATIVE: Direct integration with provider's API
+    - VENDOR_SDK: Uses provider's official SDK
+    - FILE_PARSER: Reads from files (CSV, Parquet, etc.)
+    """
+WRAPPER = "wrapper"  # e.g., CCXT wrapping exchange APIs
+NATIVE = "native"  # Direct REST/WebSocket integration
+VENDOR_SDK = "vendor_sdk"  # Official SDK (e.g., Bloomberg Terminal API)
+FILE_PARSER = "file_parser"  # File-based ingestion
+⋮----
+class ConnectionType(str, Enum)
+⋮----
+"""
+    Network connection type used by adapter.
+    
+    Specifies the protocol/mechanism for data retrieval.
+    """
+REST = "rest"
+WEBSOCKET = "websocket"
+FIX = "fix"  # Financial Information eXchange protocol
+GRPC = "grpc"
+SFTP = "sftp"
+FILE = "file"  # Local file system
+DATABASE = "database"  # Direct database connection
+⋮----
+class PipelineMode(str, Enum)
+⋮----
+"""
+    Execution mode for data ingestion pipeline.
+    
+    Used by orchestration layer to determine behavior:
+    - BACKFILL: Historical data fetch with pagination
+    - INCREMENTAL: Recent data fetch (e.g., last N candles)
+    - STREAMING: Real-time continuous data feed
+    """
+BACKFILL = "backfill"
+INCREMENTAL = "incremental"
+STREAMING = "streaming"
+⋮----
+class IngestionStatus(str, Enum)
+⋮----
+"""Status of data ingestion operation."""
+PENDING = "pending"
+RUNNING = "running"
+SUCCESS = "success"
+FAILED = "failed"
+PARTIAL = "partial"  # Some data retrieved, some failed
+SKIPPED = "skipped"
+</file>
+
+<file path="quant_framework/ingestion/orchestration/data_fetcher.py">
+"""
+DataFetchOrchestrator coordinates adapter → preprocessor → normalizer pipeline.
+"""
+⋮----
+class Normalizer(Protocol)
+⋮----
+):  # pragma: no cover - structural
+⋮----
+class DataFetchOrchestrator
+⋮----
+"""Coordinates fetching raw data, preprocessing quirks, and normalizing to domain models."""
+⋮----
+raw = await self.adapter.fetch_ohlcv(instrument, timeframe, start, end, limit)
+preprocessed = self.preprocessor.preprocess_ohlcv(instrument, raw)
+⋮----
+raw = await self.adapter.fetch_open_interest(
+preprocessed = self.preprocessor.preprocess_open_interest(instrument, raw)
+</file>
+
+<file path="quant_framework/ingestion/pipelines/__init__.py">
+"""
+Orchestration pipelines for market data ingestion.
+Placeholder for future pipeline implementations.
+"""
+</file>
+
+<file path="quant_framework/ingestion/ports/__init__.py">
+"""Data ports for capability-based adapter design."""
+</file>
+
+<file path="quant_framework/ingestion/ports/data_ports.py">
+"""
+Data port protocols for capability-based adapters.
+
+Ports define the raw data contracts that adapters must satisfy before
+preprocessing/normalization. This enables layered architecture and
+provider-agnostic orchestration.
+"""
+⋮----
+class OHLCVPort(Protocol)
+⋮----
+"""Raw OHLCV data port."""
+⋮----
+"""Fetch raw OHLCV candles for the given instrument."""
+⋮----
+class OpenInterestPort(Protocol)
+⋮----
+"""Raw open interest data port."""
+⋮----
+"""Fetch raw open interest snapshots for the given instrument."""
+</file>
+
+<file path="quant_framework/ingestion/preprocessing/base.py">
+"""
+Preprocessing layer interface for provider-specific quirks.
+
+Preprocessors convert raw adapter payloads into normalized intermediary
+records before domain normalization. They handle:
+- Parameter adjustments (e.g., timeframe mapping, pagination hints)
+- Field renaming/conversions (e.g., timestamps in seconds vs ms)
+- Provider quirks (e.g., COIN-M openInterestValue vs openInterestAmount)
+"""
+⋮----
+class DataPreprocessor(ABC)
+⋮----
+"""Abstract preprocessor for provider-specific quirks."""
+⋮----
+"""Transform raw OHLCV payloads into normalized intermediary rows."""
+⋮----
+"""Transform raw open interest payloads into normalized intermediary rows."""
+</file>
+
+<file path="quant_framework/ingestion/preprocessing/providers.py">
+"""
+Exchange-specific preprocessors extracting common fields and harmonizing payloads.
+"""
+⋮----
+def _to_ms(value: Any) -> Any
+⋮----
+# Some exchanges return seconds, others ms
+⋮----
+class BinancePreprocessor(DataPreprocessor)
+⋮----
+ts = row[0] if isinstance(row, (list, tuple)) else row.get("timestamp")
+⋮----
+amount = row.get("openInterestAmount") or row.get("sumOpenInterest")
+value = row.get("openInterestValue")
+⋮----
+class BybitPreprocessor(DataPreprocessor)
+⋮----
+amount = row.get("openInterest")
+⋮----
+class GateIOPreprocessor(DataPreprocessor)
+⋮----
+class HuobiPreprocessor(DataPreprocessor)
+⋮----
+ts = (
+⋮----
+class BitgetPreprocessor(DataPreprocessor)
+⋮----
+"""CoinAlyze preprocessor for transforming raw API responses."""
+⋮----
+logger = logging.getLogger(__name__)
+⋮----
+class CoinalyzePreprocessor(DataPreprocessor)
+⋮----
+"""
+    Transform CoinAlyze API responses into normalized format.
+
+    Handles exchange-specific response structures and field extraction.
+    """
+⋮----
+"""
+        Transform CoinAlyze OHLCV response structure:
+
+        Input format:
+        [
+            {
+                "symbol": "BTCUSDT_PERP.A",
+                "history": [
+                    {"t": timestamp, "o": open, "h": high, "l": low, "c": close, "v": volume},
+                    ...
+                ]
+            }
+        ]
+
+        Output format:
+        Iterator of: {
+            "timestamp": ms,
+            "open": float,
+            "high": float,
+            "low": float,
+            "close": float,
+            "volume": float
+        }
+        """
+⋮----
+history = symbol_data.get("history", [])
+⋮----
+"""
+        Transform CoinAlyze Open Interest response.
+
+        CoinAlyze returns OI in OHLC format - we use 'c' (close) as the OI value.
+        """
+⋮----
+def _to_ms(self, timestamp: int) -> int
+⋮----
+"""Convert timestamp to milliseconds if needed"""
+</file>
+
+<file path="quant_framework/ingestion/symbol_resolution/resolver.py">
+"""
+SymbolResolver bridges legacy symbol registry to the Instrument domain model.
+"""
+⋮----
+class SymbolRegistry(Protocol)
+⋮----
+def resolve(self, symbol: str) -> dict
+⋮----
+class SymbolResolver
+⋮----
+"""Converts legacy registry output into Instrument instances."""
+⋮----
+def __init__(self, registry: SymbolRegistry)
+⋮----
+def resolve(self, symbol: str) -> Instrument
+⋮----
+data = self.registry.resolve(symbol)
+</file>
+
+<file path="quant_framework/ingestion/__init__.py">
+"""
+Ingestion module for market data collection.
+Clean architecture with adapters, connectors, and pipelines.
+"""
+</file>
+
+<file path="quant_framework/ingestion/service.py">
+"""
+IngestionService: public entrypoint for capability-based ingestion.
+"""
+⋮----
+class IngestionService
+⋮----
+"""Composes adapter, preprocessor, and normalizers to serve ingestion requests."""
+⋮----
+def _build_orchestrator(self, provider: DataProvider, *args: Any, **kwargs: Any) -> DataFetchOrchestrator
+⋮----
+adapter = self.adapter_factory.create(provider, *args, **kwargs)
+preprocessor = self.preprocessor_factory.create(provider)
+⋮----
+orchestrator = self._build_orchestrator(provider, **adapter_kwargs)
+</file>
+
+<file path="quant_framework/shared/enums/__init__.py">
+"""
+Shared enumerations for market data ingestion.
+Re-exports from mnemo_quant.models.enums for compatibility.
+"""
+⋮----
+__all__ = ["AssetClass", "Exchange", "MarketDataType", "MarketType"]
+</file>
+
+<file path="quant_framework/shared/models/__init__.py">
+"""Shared domain models."""
+⋮----
+__all__ = [
+⋮----
+# Enums
+⋮----
+# Models
+</file>
+
+<file path="quant_framework/shared/models/enums.py">
+"""
+Shared enumerations for the Quant Framework.
+
+Refactored to separate data venues (WHERE) from wrappers (HOW).
+Khraisha §2 p 44-54: Multi-asset, multi-venue support requires clear type definitions.
+"""
+⋮----
+# ============================================================================
+# ASSET & INSTRUMENT CLASSIFICATION
+⋮----
+class AssetClass(str, enum.Enum)
+⋮----
+"""Layer 1-4: Fundamental asset classification."""
+⋮----
+CRYPTO = "crypto"
+EQUITY = "equity"
+FUTURE = "future"
+OPTION = "option"
+FOREX = "forex"
+COMMODITY = "commodity"
+RATES = "rates"
+INDEX = "index"
+OTHER = "other"
+⋮----
+class ContractType(str, enum.Enum)
+⋮----
+"""Layer 1-4: Contract settlement type - needed for ingestion!
+    Khraisha: Preserve ingestion context in canonical forms."""
+⋮----
+LINEAR = "linear"
+INVERSE = "inverse"
+⋮----
+class CandleType(str, enum.Enum)
+⋮----
+"""Layer 1-4: Price feed types - needed during ingestion
+    to distinguish what we're pulling from exchanges."""
+⋮----
+SPOT = "spot"
+FUTURES = "futures"
+MARK = "mark"
+⋮----
+FUNDING_RATE = "funding_rate"
+⋮----
+class PriceType(str, enum.Enum)
+⋮----
+"""Layer 1-4: Price reference types - exchanges provide different prices."""
+⋮----
+LAST = "last"
+⋮----
+class InstrumentType(str, enum.Enum)
+⋮----
+"""Layer 1-4: Instrument type classification."""
+⋮----
+PERPETUAL = "perpetual"
+⋮----
+CALL = "call"
+PUT = "put"
+STOCK = "stock"
+PAIR = "pair"
+⋮----
+class MarketType(str, enum.Enum)
+⋮----
+"""
+    Market type classification that maps to exchange market structures.
+    Used for routing and configuration.
+    """
+⋮----
+LINEAR_PERPETUAL = "linear_perpetual"  # USD-margined perpetuals
+INVERSE_PERPETUAL = "inverse_perpetual"  # Coin-margined perpetuals
+LINEAR_FUTURE = "linear_future"  # Dated USD-margined futures
+INVERSE_FUTURE = "inverse_future"  # Dated coin-margined futures
+⋮----
+class OrderType(str, enum.Enum)
+⋮----
+"""Layer 1-4: Order type - fundamental market structure."""
+⋮----
+LIMIT = "limit"
+MARKET = "market"
+STOP_LOSS = "stop_loss"
+STOP_LOSS_LIMIT = "stop_loss_limit"
+TAKE_PROFIT = "take_profit"
+TAKE_PROFIT_LIMIT = "take_profit_limit"
+⋮----
+class MarketDataType(str, enum.Enum)
+⋮----
+"""Types of market data streams."""
+⋮----
+OHLC = "ohlc"
+OHLCV = "ohlcv"
+OPEN_INTEREST = "open_interest"
+⋮----
+LIQUIDATION = "liquidation"
+ORDERBOOK = "orderbook"
+TRADES = "trades"
+TICKER = "ticker"
+⋮----
+# DATA LINEAGE: WHERE (Venue) + HOW (Wrapper)
+⋮----
+class DataVenue(str, enum.Enum)
+⋮----
+"""The actual source where data originates.
+
+    This represents the legal entity/trading venue that generates the data.
+    Used to track data provenance and lineage.
+
+    Examples:
+    - BINANCE_USDM: Binance USD-M Futures exchange
+    - ICE_DATA: ICE Data Services
+    - NYSE: New York Stock Exchange
+    """
+⋮----
+# ========== CRYPTO EXCHANGES ==========
+# Binance (separate venues for different market types)
+BINANCE = "binance"  # Spot
+BINANCE_USDM = "binance_usdm"  # USD-M Futures (linear perpetual/futures)
+BINANCE_COINM = "binance_coinm"  # COIN-M Futures (inverse perpetual/futures)
+⋮----
+# Other major crypto exchanges
+BYBIT = "bybit"
+GATEIO = "gateio"
+HUOBI = "huobi"
+BITGET = "bitget"
+OKX = "okx"
+KRAKEN = "kraken"
+COINBASE = "coinbase"
+DERIBIT = "deribit"
+⋮----
+# ========== TRADITIONAL EXCHANGES ==========
+NYSE = "nyse"
+NASDAQ = "nasdaq"
+LSE = "lse"  # London Stock Exchange
+⋮----
+# ========== FUTURES & DERIVATIVES EXCHANGES ==========
+CME = "cme"  # Chicago Mercantile Exchange
+CBOE = "cboe"  # Chicago Board Options Exchange
+ICE_FUTURES = "ice_futures"  # ICE Futures (as trading venue)
+EUREX = "eurex"
+⋮----
+# ========== DATA VENDORS (Terminal/Feed Providers) ==========
+BLOOMBERG = "bloomberg"  # Bloomberg Terminal
+REFINITIV = "refinitiv"  # Refinitiv Eikon/Workspace
+ICE_DATA = "ice_data"  # ICE Data Services (as data provider)
+FACTSET = "factset"
+⋮----
+# ========== FOREX VENUES ==========
+OANDA = "oanda"
+FXCM = "fxcm"
+⋮----
+# ========== SPECIAL CASES ==========
+AGGREGATED = "aggregated"  # When wrapper combines multiple venues
+INTERNAL = "internal"  # Internal data generation
+FILE = "file"  # File-based data
+UNKNOWN = "unknown"  # Unknown source
+⋮----
+class WrapperImplementation(str, enum.Enum)
+⋮----
+"""How we access the data (wrapper/client type).
+
+    This identifies the specific library/API/service used to fetch data.
+    Separates the access method from the data source.
+
+    Examples:
+    - CCXT: Accessing Binance via CCXT library
+    - COINALYZE: Accessing multiple exchanges via CoinAlyze API
+    - YAHOO_FINANCE: Accessing various venues via Yahoo Finance
+    - NONE: Direct native API access
+    """
+⋮----
+# ========== CRYPTO WRAPPERS ==========
+CCXT = "ccxt"  # CCXT library (multi-exchange)
+COINALYZE = "coinalyze"  # CoinAlyze API (multi-exchange aggregator)
+⋮----
+# ========== MULTI-ASSET WRAPPERS ==========
+YAHOO_FINANCE = "yahoo_finance"  # Yahoo Finance (stocks, crypto, forex, futures)
+ALPHA_VANTAGE = "alpha_vantage"  # Alpha Vantage API
+POLYGON = "polygon"  # Polygon.io (stocks, forex, crypto)
+TWELVE_DATA = "twelve_data"  # Twelve Data API
+FINNHUB = "finnhub"  # Finnhub API
+⋮----
+# ========== BLOCKCHAIN DATA WRAPPERS ==========
+ETHERSCAN = "etherscan"  # Etherscan API
+ALCHEMY = "alchemy"  # Alchemy API
+INFURA = "infura"  # Infura API
+THEGRAPH = "thegraph"  # The Graph Protocol
+⋮----
+# ========== TRADITIONAL FINANCE WRAPPERS ==========
+IB_INSYNC = "ib_insync"  # Interactive Brokers wrapper
+ALPACA = "alpaca"  # Alpaca trading API
+ROBINHOOD = "robinhood"  # Robinhood API
+⋮----
+# ========== VENDOR SDKs ==========
+BLOOMBERG_SDK = "bloomberg_sdk"  # Bloomberg Terminal API
+REFINITIV_SDK = "refinitiv_sdk"  # Refinitiv SDK
+⋮----
+# ========== NATIVE (No Wrapper) ==========
+NONE = "none"  # Direct API access, no wrapper
+⋮----
+class ClientType(str, enum.Enum)
+⋮----
+"""Type of client implementation architecture.
+
+    Describes the technical implementation pattern.
+    """
+⋮----
+WRAPPER = "wrapper"  # Third-party wrapper library
+NATIVE = "native"  # Direct native API integration
+VENDOR_SDK = "vendor_sdk"  # Official vendor SDK
+FILE_PARSER = "file_parser"  # File-based ingestion
+⋮----
+class ConnectionType(str, enum.Enum)
+⋮----
+"""Network connection type used by adapter."""
+⋮----
+REST = "rest"
+WEBSOCKET = "websocket"
+FIX = "fix"  # Financial Information eXchange protocol
+GRPC = "grpc"
+SFTP = "sftp"
+FILE = "file"  # Local file system
+DATABASE = "database"  # Direct database connection
+⋮----
+# PIPELINE & INGESTION
+⋮----
+class PipelineMode(str, enum.Enum)
+⋮----
+"""Execution mode for data ingestion pipeline."""
+⋮----
+BACKFILL = "backfill"
+INCREMENTAL = "incremental"
+STREAMING = "streaming"
+⋮----
+class IngestionStatus(str, enum.Enum)
+⋮----
+"""Status of data ingestion operation."""
+⋮----
+PENDING = "pending"
+RUNNING = "running"
+SUCCESS = "success"
+FAILED = "failed"
+PARTIAL = "partial"  # Some data retrieved, some failed
+SKIPPED = "skipped"
+⋮----
+# BACKWARD COMPATIBILITY ALIASES (Deprecated)
+⋮----
+# Note: DataProvider and Exchange are deprecated in favor of DataVenue + WrapperImplementation
+# Keep for migration period only
+⋮----
+class Exchange(str, enum.Enum)
+⋮----
+"""Trading venue identifiers (DEPRECATED - use DataVenue instead)."""
+⋮----
+BINANCE = "binance"
+BINANCEUSDM = "binance_usdm"
+BINANCECOINM = "binance_coinm"
+⋮----
+@classmethod
+    def _missing_(cls, value)
+⋮----
+value_lower = value.lower()
+⋮----
+# Alias for migration - maps old DataProvider to new DataVenue
+DataProvider = DataVenue  # type: ignore
+</file>
+
+<file path="quant_framework/shared/models/instruments.py">
+# quant_framework/shared/models/instruments.py
+⋮----
+class Instrument(BaseModel)
+⋮----
+"""
+    Universal instrument model supporting all asset classes.
+
+    Pydantic version provides robust validation and automatic field calculation.
+    """
+⋮----
+# ========== CORE IDENTIFIERS (Required) ==========
+instrument_id: str = Field(..., description="Unique identifier")
+asset_class: AssetClass
+market_type: MarketType
+venue: DataVenue
+⋮----
+# ========== ASSET COMPOSITION (Required) ==========
+base_asset: str
+quote_asset: str
+⋮----
+# ========== DATA LINEAGE (Optional) ==========
+wrapper: WrapperImplementation = Field(
+⋮----
+# ========== CONTRACT SPECIFICATIONS (Optional) ==========
+contract_type: str | None = Field(default=None)
+contract_size: Decimal | None = Field(default=None)
+tick_size: Decimal | None = Field(default=None)
+lot_size: Decimal | None = Field(default=None)
+⋮----
+# ========== LIFECYCLE (Optional) ==========
+listing_date: datetime | None = Field(default=None)
+expiry_date: datetime | None = Field(default=None)
+is_active: bool = Field(default=True)
+⋮----
+# ========== SPECIAL FLAGS (Optional) ==========
+is_inverse: bool = Field(default=False)
+⋮----
+# ========== VENUE/WRAPPER MAPPING (Optional) ==========
+raw_symbol: str = Field(default="")
+metadata: dict[str, Any] | None = Field(default_factory=dict)
+⋮----
+# ========== CALCULATED FIELD (Not in __init__) ==========
+settlement_currency: str | None = Field(default=None)
+⋮----
+# ==================== VALIDATORS ====================
+⋮----
+@validator("raw_symbol", pre=True, always=True)
+    def set_raw_symbol(cls, v, values)
+⋮----
+"""Set raw_symbol to instrument_id if not provided"""
+⋮----
+@validator("metadata", pre=True, always=True)
+    def set_metadata(cls, v)
+⋮----
+"""Initialize metadata as empty dict if None"""
+⋮----
+@root_validator(skip_on_failure=True)
+    def calculate_settlement_currency(cls, values)
+⋮----
+"""Auto-calculate settlement currency based on contract type"""
+settlement = values.get("settlement_currency")
+⋮----
+# Only calculate if settlement_currency is None
+⋮----
+is_inverse = values.get("is_inverse", False)
+base_asset = values.get("base_asset")
+quote_asset = values.get("quote_asset")
+⋮----
+# ==================== PROPERTIES ====================
+⋮----
+@property
+    def symbol(self) -> str
+⋮----
+"""Alias for instrument_id for backward compatibility"""
+⋮----
+@property
+    def full_symbol(self) -> str
+⋮----
+"""Full symbol with venue prefix (e.g., 'binance_usdm:BTCUSDT')"""
+⋮----
+@property
+    def data_lineage(self) -> str
+⋮----
+"""Human-readable data lineage string"""
+⋮----
+@property
+    def is_derivative(self) -> bool
+⋮----
+"""Check if instrument is a derivative"""
+⋮----
+@property
+    def is_perpetual(self) -> bool
+⋮----
+"""Check if instrument is a perpetual swap"""
+⋮----
+# ==================== SERIALIZATION ====================
+⋮----
+def to_dict(self) -> dict[str, Any]
+⋮----
+"""Convert to dictionary (Pydantic does this natively)"""
+⋮----
+def to_json(self) -> str
+⋮----
+"""Convert to JSON string"""
+⋮----
+class Config
+⋮----
+"""Pydantic configuration"""
+⋮----
+validate_assignment = True  # Re-validate on attribute change
+arbitrary_types_allowed = True  # Allow Decimal, datetime
+⋮----
+# ==================== TESTING ====================
+</file>
+
+<file path="quant_framework/shared/__init__.py">
+"""
+Shared infrastructure modules.
+"""
+</file>
+
+<file path="quant_framework/__init__.py">
+"""
+Quantitative framework for systematic trading.
+Modular architecture with clean separation of concerns.
+
+Modules:
+- ingestion: Market data collection and normalization
+- shared: Common models, enums, utilities
+- infrastructure: Config, database, logging
+"""
+</file>
+
+</files>

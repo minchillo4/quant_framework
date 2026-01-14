@@ -1,0 +1,26 @@
+# config/market_types/inverse_perpetual.yaml
+---
+# Inverse perpetual futures configuration (Coin-margined)
+market_type: "inverse_perpetual"
+settlement_currency: "BTC"
+instrument_type: "perpetual"
+margin_type: "cross"
+contract_size: 100
+
+supported_data_types:
+  - ohlc
+  - open_interest
+  - funding_rate
+  - liquidations
+
+validation:
+  require_open_interest: true
+  require_funding_rate: true
+  price_precision: 2
+  volume_precision: 6
+
+endpoint_support:
+  ohlc: true
+  open_interest: true
+  funding_rate: true
+  liquidation: true

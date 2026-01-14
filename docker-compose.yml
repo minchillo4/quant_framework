@@ -1,0 +1,403 @@
+# Common Airflow environment variables
+x-airflow-common-env: &airflow-common-env
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@timescaledb:5432/airflow
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+  AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+  AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'true'
+  AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+  AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+  AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+  AIRFLOW__WEBSERVER__RBAC: 'true'
+  AIRFLOW__WEBSERVER__USERNAME: ${AIRFLOW_USER:-admin}
+  AIRFLOW__WEBSERVER__PASSWORD: ${AIRFLOW_PASSWORD:-admin}
+  _PIP_ADDITIONAL_REQUIREMENTS: ''
+  AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: 'false'
+  _AIRFLOW_DB_MIGRATE: 'false'
+  DOCKER_HOST: unix:///var/run/docker.sock
+
+  # ============================================================================
+  # Airflow Services
+  # ============================================================================
+services:
+  airflow-init:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    container_name: quant-airflow-init
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      <<: *airflow-common-env
+      AIRFLOW_USERNAME: ${AIRFLOW_USER:-admin}
+      AIRFLOW_PASSWORD: ${AIRFLOW_PASSWORD:-admin}
+      AIRFLOW_EMAIL: ${AIRFLOW_EMAIL:-admin@example.com}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    user: "50000:0"
+    entrypoint: ["/bin/bash","-lc"]
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+      airflow connections create-default-connections
+      "
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    container_name: quant-airflow-webserver
+    environment:
+      <<: *airflow-common-env
+      PYTHONPATH: "/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    ports:
+      - "8080:8080"
+    user: "50000:0"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command: webserver
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    container_name: quant-airflow-scheduler
+    environment:
+      <<: *airflow-common-env
+      PYTHONPATH: "/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    user: "50000:0"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command: scheduler
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    container_name: quant-airflow-triggerer
+    environment:
+      <<: *airflow-common-env
+      PYTHONPATH: "/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    user: "50000:0"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    command: triggerer
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+
+  # ============================================================================
+  # Application Services
+  # ============================================================================
+
+  mnemo_quant:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    container_name: quant-mnemo
+    image: quant-mnemo:latest
+    environment:
+      - CONFIG_PATH=/app/config
+      - PYTHONPATH=/app/src:/app
+      - MNEMO_ENV=${MNEMO_ENV:-dev}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - TIMESCALE_URL=${TIMESCALE_URL}
+      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
+      - REDIS_URL=${REDIS_URL}
+    volumes:
+      - ./config:/app/config
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./conftest.py:/app/conftest.py
+      - ./pytest.ini:/app/pytest.ini
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: tail -f /dev/null
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from config.settings import settings; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  mnemo_quant_api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    image: quant-mnemo-api:latest
+    container_name: quant-mnemo-api
+    environment:
+      - PYTHONPATH=/app/src
+      - CONFIG_PATH=/app/config
+      - MNEMO_ENV=${MNEMO_ENV:-dev}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - TIMESCALE_URL=${TIMESCALE_URL}
+      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
+      - REDIS_URL=${REDIS_URL}
+    volumes:
+      - ./config:/app/config
+      - ./pyproject.toml:/app/pyproject.toml
+    ports:
+      - "8000:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    command: uvicorn mnemo_quant_api.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+
+  timescaledb:
+    image: timescale/timescaledb:2.21.3-pg15
+    container_name: quant-timescaledb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
+      POSTGRES_DB: ${POSTGRES_DB:-mnemo_quant}
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: quant-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+
+  pgadmin:
+    image: dpage/pgadmin4:7
+    container_name: quant-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - timescaledb
+    restart: unless-stopped
+
+  # ============================================================================
+  # Monitoring Services
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: quant-prometheus
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ./infra/monitoring/prometheus/rules:/etc/prometheus/rules
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    container_name: quant-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Storage Services
+  # ============================================================================
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"  # S3 API
+      - "9001:9001"  # Web Console
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  minio-init:
+    image: alpine:latest
+    container_name: minio-init
+    env_file:
+      - .env.${MNEMO_ENV:-dev}
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME:-bronze}
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./src/quant_framework/infrastructure/minio/init_bronze.sh:/init.sh:ro
+      - ./config:/app/config:ro
+    command: |
+      sh -c "
+      apk add --no-cache bash minio-client curl python3 py3-pip &&
+      pip3 install --no-cache-dir pyyaml &&
+      ln -sf /usr/bin/mc /usr/local/bin/mc &&
+      bash /init.sh
+      "
+    restart: "no"
+
+# ============================================================================
+# Volumes
+# ============================================================================
+
+volumes:
+  timescale-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  app-logs:
+  pgadmin-data:
+  airflow-logs:
+  airflow-dags:
+  airflow-plugins:
+  minio_data:
+
+# ============================================================================
+# Networks
+# ============================================================================
+
+networks:
+  default:
+    name: mnemo-quant-network
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

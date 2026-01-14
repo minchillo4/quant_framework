@@ -1,0 +1,8 @@
+# Staging: Mirrors prod but safe (sandbox keys, snapshots)
+ccxt_mock: false
+log_level: INFO
+universe_override: universe.yaml  # Full but test keys
+max_concurrent: 8
+rate_limits_strict: true
+execution_mode: paper  # Or live with small notional
+db_use_snapshot: true  # Reproducible DB copy

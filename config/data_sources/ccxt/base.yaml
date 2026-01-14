@@ -1,0 +1,51 @@
+# config/data_sources/ccxt/base.yaml
+---
+# Base configuration for all CCXT-based data sources
+data_source_type: "ccxt"
+
+# CCXT Defaults
+compression: "lz4"
+timeout: 30000
+enable_rate_limit: true
+
+# WebSocket Defaults
+websocket:
+  max_connections: 5
+  max_streams_per_connection: 200
+  reconnect_delay: 5
+
+# Supported Timeframes (common across exchanges)
+supported_timeframes:
+  - "1m"
+  - "5m" 
+  - "15m"
+  - "1h"
+  - "4h"
+  - "1d"
+
+supported_oi_timeframes:
+  - "5m"
+  - "1h"
+  - "4h"
+
+# Batch Sizes
+batch_limits:
+  ohlc: 1000
+  open_interest: 500
+  ingestion: 500
+  publishing: 100
+
+# Endpoint Support (defaults - can be overridden per market type)
+endpoint_support:
+  ohlc: true
+  open_interest: true
+  funding_rate: false
+  liquidation: false
+  trades: false
+  orderbook: false
+
+# Validation
+validation:
+  require_timestamp: true
+  validate_symbol: true
+  validate_timeframe: true

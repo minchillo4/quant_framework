@@ -1,0 +1,26 @@
+# config/market_types/linear_perpetual.yaml
+---
+# Linear perpetual futures configuration (USD-margined)
+market_type: "linear_perpetual"
+settlement_currency: "USDT"
+instrument_type: "perpetual"
+margin_type: "cross"
+contract_size: 1
+
+supported_data_types:
+  - ohlc
+  - open_interest
+  - funding_rate
+  - liquidations
+
+validation:
+  require_open_interest: true
+  require_funding_rate: true
+  price_precision: 6
+  volume_precision: 6
+
+endpoint_support:
+  ohlc: true
+  open_interest: true
+  funding_rate: true
+  liquidation: true

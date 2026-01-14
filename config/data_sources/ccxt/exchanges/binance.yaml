@@ -1,0 +1,62 @@
+# config/data_sources/ccxt/exchanges/binance.yaml
+---
+# Binance-specific configuration with market type support
+exchange: "binance"
+data_source_type: "ccxt"
+
+# Market Type Specific Configurations
+market_types:
+  spot:
+    api_base_url: "https://api.binance.com"
+    ws_base_url: "wss://stream.binance.com:9443/ws"
+    ccxt_class: "binance"
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: false
+      funding_rate: false
+
+  linear_perpetual:
+    api_base_url: "https://fapi.binance.com"
+    ws_base_url: "wss://fstream.binance.com/ws"
+    ccxt_class: "binanceusdm"
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    # Binance-specific limits
+    batch_limits:
+      ohlc: 1500
+      open_interest: 500
+
+  inverse_perpetual:
+    api_base_url: "https://dapi.binance.com"
+    ws_base_url: "wss://dstream.binance.com/ws"
+    ccxt_class: "binancecoinm"
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    # Different limits for COIN-M
+    batch_limits:
+      ohlc: 1000
+      open_interest: 300
+
+# Exchange-wide settings
+rest_rate_limit: 1200
+retry:
+  max_retries: 5
+  delay: 2.0

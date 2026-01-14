@@ -1,0 +1,131 @@
+# Production overrides - extends docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  # ============================================================================
+  # Airflow Services - Production Overrides
+  # ============================================================================
+  
+  airflow-init:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.prod
+    volumes:
+      # Only mount config in production
+      - ./config:/app/config:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.prod
+    volumes:
+      # NO SOURCE CODE MOUNTS in production - code is baked into image
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=60  # Slower in prod for stability
+      - AIRFLOW__CORE__DAG_DISCOVERY_SAFE_MODE=true  # Safety enabled
+      - PYTHONPATH=/opt/airflow:/opt/airflow/src:/app
+      - LOG_LEVEL=INFO  # Less verbose in production
+      # Consider switching to CeleryExecutor in production for scaling
+      # - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      # - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      # - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:${AIRFLOW_DB_PASSWORD}@timescaledb:5432/airflow
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.prod
+    volumes:
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=60
+      - PYTHONPATH=/opt/airflow:/opt/airflow/src:/app
+      - LOG_LEVEL=INFO
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.prod
+    volumes:
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/airflow/logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins
+    environment:
+      - PYTHONPATH=/opt/airflow:/opt/airflow/src:/app
+      - LOG_LEVEL=INFO
+
+  # ============================================================================
+  # Application Services - Production Overrides
+  # ============================================================================
+
+  mnemo_quant:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile  # Use production Dockerfile
+    volumes:
+      # NO SOURCE CODE MOUNTS in production
+      - ./config:/app/config:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./conftest.py:/app/conftest.py:ro
+      - ./pytest.ini:/app/pytest.ini:ro
+    environment:
+      - PYTHONPATH=/app/src:/app
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=INFO
+      - MNEMO_ENV=prod
+
+  mnemo_quant_api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile  # Use production Dockerfile
+    volumes:
+      # NO SOURCE CODE MOUNTS in production
+      - ./config:/app/config:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - PYTHONPATH=/app/src
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=INFO
+      - MNEMO_ENV=prod
+
+  # ============================================================================
+  # Infrastructure - Production Overrides
+  # ============================================================================
+
+  timescaledb:
+    # In production, you may want to use external managed database
+    # and disable this service, or use proper backup/HA configuration
+    command: >
+      postgres
+      -c max_connections=300
+      -c shared_buffers=512MB
+      -c effective_cache_size=2GB
+      -c maintenance_work_mem=128MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+
+  redis:
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --appendonly yes
+      --appendfsync everysec
+

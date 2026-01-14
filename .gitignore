@@ -1,0 +1,47 @@
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+*.env
+!*.example
+
+secrets/
+*.key
+*.pem
+*.cert
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# =========================
+# Virtual Environments
+# =========================
+venv/
+.venv/
+
+# =========================
+# Logs & Generated
+# =========================
+*.log
+infra/airflow/logs/
+
+# =========================
+# Editors / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# Explicit Sensitive Files
+# =========================
+sql_commands.txt
+config/*.yaml

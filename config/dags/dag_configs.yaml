@@ -1,0 +1,128 @@
+# Universal DAG configuration for all data sources and types
+# This single file drives all DAG generation
+
+# =============================================================================
+# CCXT DATA SOURCE (Crypto Market Data)
+# =============================================================================
+backfill_dags:
+  # ----------------------------------------------------------------------------
+  # OHLC (Candlestick) Data
+  # ----------------------------------------------------------------------------
+  - data_type: ohlc
+    data_source: ccxt
+    active: true
+    exchanges: [binance, bybit, gateio]
+    timeframes: [1m, 5m, 15m, 1h, 4h, 1d]
+    schedule: null
+    max_records_per_symbol: 1500
+    maintenance_lookback_days: 7
+    pool_slots: 2
+    execution_timeout_hours: 4
+    success_threshold: 90
+    wait_seconds: 60
+    endpoints:
+      - fetch_ohlc
+      - fetch_ohlc_history
+    sql_template: |
+      SELECT canonical_symbol, timeframe, COUNT(*) as ingested_count,
+             MIN(ts) as earliest, MAX(ts) as latest
+      FROM market.ohlc
+      WHERE ingest_ts >= NOW() - INTERVAL '{{ wait_seconds }} seconds'
+      GROUP BY canonical_symbol, timeframe
+      HAVING COUNT(*) > 0
+      ORDER BY ingested_count DESC
+      LIMIT 10;
+
+  # ----------------------------------------------------------------------------
+  # Open Interest Data
+  # ----------------------------------------------------------------------------
+  - data_type: open_interest
+    data_source: ccxt
+    active: true
+    exchanges: [binance, bybit, gateio, huobi]
+    timeframes: [5m, 1h]
+    schedule: null
+    max_records_per_symbol: 500
+    maintenance_lookback_days: 1
+    pool_slots: 3
+    execution_timeout_hours: 4
+    success_threshold: 90
+    wait_seconds: 30
+    endpoints:
+      - fetch_open_interest
+      - fetch_open_interest_history
+    sql_template: |
+      SELECT canonical_symbol, timeframe, COUNT(*) as ingested_count,
+             AVG(open_interest) as avg_oi
+      FROM market.open_interest
+      WHERE ingest_ts >= NOW() - INTERVAL '{{ wait_seconds }} seconds'
+      GROUP BY canonical_symbol, timeframe
+      HAVING COUNT(*) > 0
+      ORDER BY ingested_count DESC
+      LIMIT 10;
+
+# =============================================================================
+# INCREMENTAL UPDATE DAGS (Scheduled)
+# =============================================================================
+incremental_dags:
+  - data_type: ohlc
+    data_source: ccxt
+    active: true
+    exchanges: [binance, bybit, gateio]
+    timeframes: [1m, 5m, 15m, 1h]
+    schedule: "*/5 * * * *"
+    lookback_minutes: 60
+    pool_slots: 1
+    execution_timeout_hours: 1
+    success_threshold: 90
+    wait_seconds: 30
+    sql_template: |
+      SELECT canonical_symbol, timeframe, COUNT(*) as ingested_count,
+             MIN(ts) as earliest, MAX(ts) as latest
+      FROM market.ohlc
+      WHERE ingest_ts >= NOW() - INTERVAL '{{ lookback_minutes }} minutes'
+      GROUP BY canonical_symbol, timeframe
+      HAVING COUNT(*) > 0
+      ORDER BY ingested_count DESC
+      LIMIT 10;
+
+  - data_type: open_interest
+    data_source: ccxt
+    active: true
+    exchanges: [binance, bybit, gateio, huobi]
+    timeframes: [5m, 1h]
+    schedule: "*/10 * * * *"
+    lookback_minutes: 120
+    pool_slots: 1
+    execution_timeout_hours: 1
+    success_threshold: 90
+    wait_seconds: 30
+    sql_template: |
+      SELECT canonical_symbol, timeframe, COUNT(*) as ingested_count,
+             AVG(open_interest) as avg_oi
+      FROM market.open_interest
+      WHERE ingest_ts >= NOW() - INTERVAL '{{ lookback_minutes }} minutes'
+      GROUP BY canonical_symbol, timeframe
+      HAVING COUNT(*) > 0
+      ORDER BY ingested_count DESC
+      LIMIT 10;
+
+# =============================================================================
+# FUTURE DATA SOURCES (Examples - Not Yet Implemented)
+# =============================================================================
+# - data_type: macro_indicators
+#   data_source: fred
+#   active: false
+#   series: [GDP, CPI, UNEMPLOYMENT]
+#   schedule: "0 0 * * *"
+# - data_type: equity_ohlc
+#   data_source: yfinance
+#   active: false
+#   symbols: [AAPL, MSFT, TSLA]
+#   timeframes: [1d]
+#   schedule: "0 16 * * 1-5"
+# - data_type: onchain_metrics
+#   data_source: cryptoquant
+#   active: false
+#   metrics: [exchange_reserve, miner_revenue]
+#   schedule: "0 */4 * * *"

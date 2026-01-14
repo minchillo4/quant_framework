@@ -1,0 +1,24 @@
+# config/market_types/spot.yaml
+---
+# Spot market configuration
+market_type: "spot"
+settlement_currency: "USDT"
+instrument_type: "spot"
+margin_type: "none"
+
+supported_data_types:
+  - ohlc
+  - trades
+  - orderbook
+
+validation:
+  require_volume: true
+  require_trades: false
+  price_precision: 8
+  volume_precision: 8
+
+endpoint_support:
+  ohlc: true
+  open_interest: false
+  funding_rate: false
+  liquidation: false

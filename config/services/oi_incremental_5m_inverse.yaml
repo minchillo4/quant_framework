@@ -1,0 +1,24 @@
+service:
+  name: ccxt_oi_5m_incremental_inverse
+  version: 1.0.0
+
+schedule:
+  cron: "*/5 * * * *"
+  timezone: UTC
+
+fetching:
+  exchanges: [binance, bybit, huobi]  # GateIO intentionally excluded - linear only
+  symbols: [BTC, ETH]
+  market_types:
+    binance: inverse_perpetual
+    bybit: inverse_perpetual
+    huobi: inverse_perpetual
+  fetch_all_settlements: false
+
+concurrency:
+  max_concurrent_exchanges: 2
+  rate_limit_delay_ms: 200
+
+checkpoint:
+  warn_threshold_ms: 7200000   # 2h
+  alert_threshold_ms: 14400000 # 4h
