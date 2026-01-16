@@ -1,0 +1,64 @@
+mnemo-quant/
+├── config/                     # Centralized configuration management
+│   ├── exchanges.yaml          # Exchange-specific constraints (rate limits, URL endpoints)
+│   └── settings.py             # Global env variables and application settings
+│
+├── ingestion/                  # Data Ingestion Layer [cite: 243]
+│   ├── connectors/             # Low-level interface logic for external providers
+│   │   ├── ccxt_wrapper.py     # Unified wrapper for  exchanges via CCXT
+│   │   └── coinmetrics.py      # Connector for alternative data sources
+│   ├── streaming/              # Async handlers for real-time WebSocket feeds [cite: 368]
+│   │   ├── orderbook.py        # L2/L3 order book stream management
+│   │   └── trades.py           # Real-time trade execution stream
+│   └── batch/                  # Handlers for historical REST API backfilling [cite: 368]
+│       └── ohlcv_backfill.py   # Scheduled fetchers for historical candles
+│
+├── storage/                    # Data Storage Layer 
+│   ├── schemas/                # Data storage models and definitions [cite: 290]
+│   │   ├── time_series.py      # Models for OHLCV and Trade data (e.g., InfluxDB/Timescale)
+│   │   └── relational.py       # Models for Instrument/Exchange metadata (SQL)
+│   ├── repositories/           # Abstracted data access layer (CRUD patterns)
+│   └── migrations/             # Database schema version control scripts
+│
+├── transformation/             # Transformation & Delivery Layer 
+│   ├── normalizers/            # Logic to standardize heterogeneous exchange formats [cite: 361]
+│   ├── cleaners/               # Deduplication, outlier removal, and error correction 
+│   ├── aggregators/            # Logic for resampling ticks to candles (1m -> 1h) [cite: 349]
+│   └── analytics/              # Feature engineering (e.g., volatility, open interest calc)
+│
+├── orchestration/              # Workflow Management Layer (Airflow) [cite: 407]
+│   ├── dags/                   # Directed Acyclic Graph definitions
+│   │   ├── ingestion_daily.py  # DAGs for daily batch ingestion jobs
+│   │   └── maintenance.py      # DAGs for DB cleanup and optimization
+│   └── operators/              # Custom Airflow operators for crypto-specific tasks
+│
+├── monitoring/                 # Monitoring Layer 
+│   ├── data_quality/           # Rules for detecting data drift, gaps, or staleness 
+│   ├── performance/            # Metrics for latency and throughput tracking [cite: 392]
+│   └── alerts/                 # Logic for routing critical failures (Slack/Email/PagerDuty)
+│
+├── common/                     # Shared Domain Logic & Utilities
+│   ├── domain/                 # Core entities (Instrument, Trade, Candle)
+│   └── utils/                  # Shared helpers (date parsing, logging wrappers)
+│
+├── tests/                      # Testing Suite
+│   ├── unit/                   # Tests for individual components
+│   └── integration/            # End-to-end pipeline verification
+│
+├── docker/                     # Infrastructure as Code
+│   ├── airflow/                # Airflow container configuration
+│   ├── database/               # Database container configuration
+│   └── docker-compose.yml      # Service orchestration
+│
+└── pyproject.toml              # Dependency and package management
+
+
+FUTURE DATASOURCES:
+
+- COINMETRICS
+- POLYMARKET
+- FRED
+- ALPHAVANTAGE
+- BIS (https://data.bis.org/topics/GLI)
+
+

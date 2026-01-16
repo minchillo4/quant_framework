@@ -1,0 +1,86 @@
+---
+# Incremental Fetcher Service Configuration
+# Long-running service for continuous 5m OHLC and OI data fetching from CCXT exchanges
+
+service:
+  name: "ccxt_1h_incremental_fetcher"
+  enabled: true
+  description: "Continuous 1h OHLC and OI data fetching from CCXT exchanges"
+  version: "1.0.0"
+
+# Scheduling configuration
+schedule:
+  cron_minute: 1          # Run at minute 1 of every hour (XX:01:00)
+  interval_seconds: 3600  # DEPRECATED: Kept for reference, now using cron
+  initial_delay_seconds: 0 # Immediate run handled by code
+  timezone: "UTC"
+  
+# Fetching configuration
+fetching:
+  base_timeframe: "1h"
+  lookback_minutes: 120  # Fetch last 2h to handle delays/gaps
+  overlap_minutes: 60    # 1h overlap for deduplication safety
+  
+  # Which data types to fetch
+  data_types:
+    - "ohlc"
+    - "oi"  # Only for perpetuals
+  
+  # Exchanges to fetch from
+  exchanges:
+    - "binance"
+    - "bybit"
+    - "gateio"
+    - "huobi"
+  
+  # Symbols to fetch (canonical names)
+  symbols:
+    - "BTC"
+    - "ETH"
+  
+  # Market types
+  market_types:
+    binance: "linear_perpetual"
+    bybit: "linear_perpetual"
+    gateio: "linear_perpetual"
+    huobi: "linear_perpetual"
+  
+  # Fetch all settlements (USDT, USDC, BUSD, etc.)
+  fetch_all_settlements: true
+  
+# Concurrency configuration
+concurrency:
+  max_concurrent_exchanges: 3  # Process 3 exchanges in parallel
+  max_concurrent_symbols_per_exchange: 5  # Process 5 symbols in parallel per exchange
+  rate_limit_delay_ms: 100  # Delay between API calls
+  
+# Health check configuration
+health:
+  enabled: true
+  port: 8080  # HTTP health check endpoint
+  check_interval_seconds: 60
+  endpoint: "/health"
+  
+# Monitoring and logging
+monitoring:
+  log_level: "INFO"
+  log_file: "logs/incremental_fetcher.log"
+  metrics_enabled: false  # Enable when Prometheus available
+  
+  # Log rotation
+  log_rotation:
+    max_bytes: 10485760  # 10MB
+    backup_count: 5
+  
+# Error handling
+error_handling:
+  max_retries: 3
+  retry_delay_seconds: 5
+  skip_unavailable_symbols: true  # Don't fail entire pipeline
+  continue_on_exchange_failure: true  # Continue with other exchanges if one fails
+  
+# Kafka publishing (uses existing BaseKafkaPublisher)
+kafka:
+  enabled: true
+  bootstrap_servers: "kafka:9092"
+  # Topics are auto-generated: market.{data_type}.{exchange}

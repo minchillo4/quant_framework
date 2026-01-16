@@ -1,0 +1,122 @@
+# Development overrides - extends docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # ============================================================================
+  # Airflow Services - Development Overrides
+  # ============================================================================
+  
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    volumes:
+      # Mount source code directly for hot-reloading
+      - ./src:/opt/airflow/src:ro
+      - ./infra/airflow/dags:/opt/airflow/dags:rw
+      - ./infra/airflow/plugins:/opt/airflow/plugins:rw
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - airflow-logs:/opt/airflow/logs
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=10  # Faster DAG discovery in dev
+      - AIRFLOW__CORE__DAG_DISCOVERY_SAFE_MODE=false  # Faster startup
+      - PYTHONPATH=/opt/airflow/src
+      - LOG_LEVEL=DEBUG
+      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    volumes:
+      - ./src:/opt/airflow/src:ro
+      - ./infra/airflow/dags:/opt/airflow/dags:rw
+      - ./infra/airflow/plugins:/opt/airflow/plugins:rw
+      - ./config:/app/config:ro  # ADD THIS LINE
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - airflow-logs:/opt/airflow/logs
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=10
+      - PYTHONPATH=/opt/airflow/src # UPDATED
+      - LOG_LEVEL=DEBUG
+      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    volumes:
+      - ./src:/opt/airflow/src:ro
+      - ./infra/airflow/dags:/opt/airflow/dags:rw
+      - ./infra/airflow/plugins:/opt/airflow/plugins:rw
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - airflow-logs:/opt/airflow/logs
+    environment:
+      - PYTHONPATH=/opt/airflow/src
+      - LOG_LEVEL=DEBUG
+      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile.dev
+    volumes:
+      - ./src:/opt/airflow/src:ro
+      - ./infra/airflow/dags:/opt/airflow/dags:rw
+      - ./config:/app/config:ro  # ADD THIS LINE
+      - airflow-logs:/opt/airflow/logs
+      - ./infra/airflow/plugins:/opt/airflow/plugins:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - PYTHONPATH=/opt/airflow/src
+      - LOG_LEVEL=DEBUG
+      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
+    entrypoint: ["/bin/bash","-lc"]
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+      airflow connections create-default-connections
+      "
+
+  # ============================================================================
+  # Application Services - Development Overrides
+  # ============================================================================
+
+  mnemo_quant:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ./src:/app/src:rw  # Allow hot-reloading
+      - ./config:/app/config:ro
+      - ./tests:/app/tests:ro
+      - ./scripts:/app/scripts:ro
+      - ./utils:/app/utils:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./conftest.py:/app/conftest.py:ro
+      - ./pytest.ini:/app/pytest.ini:ro
+    environment:
+      - PYTHONPATH=/app/src
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=DEBUG
+      - MNEMO_ENV=dev
+
+  mnemo_quant_api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ./src:/app/src:rw
+      - ./config:/app/config:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - PYTHONPATH=/app/src
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=DEBUG
+      - MNEMO_ENV=dev
+    command: uv run uvicorn mnemo_quant_api.main:app --host 0.0.0.0 --port 8000 --reload

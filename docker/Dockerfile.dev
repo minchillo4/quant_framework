@@ -1,0 +1,17 @@
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock* ./
+
+# DON'T install the project, just dependencies
+RUN uv sync --dev --frozen --no-install-project
+
+# Explicitly install uvicorn system-wide
+RUN uv pip install --system "uvicorn[standard]==0.30.6"
+
+CMD ["uv", "run", "python"]

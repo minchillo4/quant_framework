@@ -1,0 +1,72 @@
+# config/data_sources/ccxt/exchanges/bitget.yaml
+---
+# Bitget-specific configuration with market type support
+exchange: "bitget"
+data_source_type: "ccxt"
+
+# Market Type Specific Configurations
+market_types:
+  spot:
+    api_base_url: "https://api.bitget.com"
+    ws_base_url: "wss://ws.bitget.com/spot/v1/stream"
+    ccxt_class: "bitget"
+    
+    # Override base settings
+    endpoint_support:
+      ohlc: true
+      open_interest: false
+      funding_rate: false
+
+  linear_perpetual:
+    api_base_url: "https://api.bitget.com"
+    ws_base_url: "wss://ws.bitget.com/mix/v1/stream"
+    ccxt_class: "bitget"
+    
+    # Special handling for OI
+    endpoint_support:
+      ohlc: true
+      open_interest: true  # Custom implementation
+      funding_rate: true
+    
+    # OI-specific settings
+    oi_collection:
+      enabled: true
+      max_records_per_call: 1  # Only current data
+      supports_historical: false
+    
+    batch_limits:
+      ohlc: 1000
+      open_interest: 1  # Only current data
+
+  inverse_perpetual:
+    api_base_url: "https://api.bitget.com"
+    ws_base_url: "wss://ws.bitget.com/mix/v1/stream"
+    ccxt_class: "bitget"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: true  # Custom implementation
+      funding_rate: true
+    
+    oi_collection:
+      enabled: true
+      max_records_per_call: 1
+      supports_historical: false
+    
+    batch_limits:
+      ohlc: 1000
+      open_interest: 1
+
+# Exchange-wide settings
+rest_rate_limit: 20  # 20 requests per second
+oi_rate_limit: 20    # Specific OI rate limit
+
+retry:
+  max_retries: 3
+  delay: 2.0
+
+# Bitget-specific parameters for CCXT
+ccxt_params:
+  defaultType: "swap"  # futures trading
+  options:
+    defaultType: "swap"

@@ -1,0 +1,78 @@
+# config/data_sources/ccxt/exchanges/gateio.yaml
+---
+# Gate.io configuration
+exchange: "gateio"
+data_source_type: "ccxt"
+
+# Market Type Specific Configurations
+market_types:
+  spot:
+    api_base_url: "https://api.gateio.ws"
+    ws_base_url: "wss://ws.gate.io/v3/"
+    ccxt_class: "gateio"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: false
+      funding_rate: false
+
+  linear_perpetual:
+    api_base_url: "https://api.gateio.ws"
+    ws_base_url: "wss://ws.gate.io/v3/"
+    ccxt_class: "gateio"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    batch_limits:
+      ohlc: 1200
+      open_interest: 100
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+  inverse_perpetual:
+    api_base_url: "https://api.gateio.ws"
+    ws_base_url: "wss://ws.gate.io/v3/"
+    ccxt_class: "gateio"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    batch_limits:
+      ohlc: 1200
+      open_interest: 100
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+# Exchange-wide settings
+rest_rate_limit: 800
+websocket:
+  max_connections: 8
+  max_streams_per_connection: 300
+
+# Common settings
+supported_timeframes:
+  - "1m"
+  - "5m"
+  - "15m"
+  - "30m"
+  - "1h"
+  - "4h"
+  - "8h"
+  - "1d"
+  - "7d"
+  - "30d"
+
+retry:
+  max_retries: 5
+  delay: 2.0

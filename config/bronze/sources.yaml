@@ -1,0 +1,18 @@
+# Sources and their data types for Bronze bucket initialization
+sources:
+  - id: coinalyze
+    data_types:
+      - ohlc
+      - open_interest
+      - funding_rate
+  - id: binance_exchange
+    data_types:
+      - trades
+      - orderbook
+      - ohlc
+      - funding_rate
+  - id: yahoo_finance
+    data_types:
+      - ohlcv
+      - dividends
+      - splits

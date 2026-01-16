@@ -1,0 +1,81 @@
+# config/data_sources/ccxt/exchanges/bybit.yaml
+---
+# Bybit configuration (unified for all market types)
+exchange: "bybit"
+data_source_type: "ccxt"
+
+# Market Type Specific Configurations
+market_types:
+  spot:
+    api_base_url: "https://api.bybit.com"
+    ws_base_url: "wss://stream.bybit.com/v5/public/spot"
+    ccxt_class: "bybit"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: false
+      funding_rate: false
+
+  linear_perpetual:
+    api_base_url: "https://api.bybit.com"
+    ws_base_url: "wss://stream.bybit.com/v5/public/linear"
+    ccxt_class: "bybit"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    batch_limits:
+      ohlc: 1000
+      open_interest: 200
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+
+  inverse_perpetual:
+    api_base_url: "https://api.bybit.com"
+    ws_base_url: "wss://stream.bybit.com/v5/public/inverse"
+    ccxt_class: "bybit"
+    
+    endpoint_support:
+      ohlc: true
+      open_interest: true
+      funding_rate: true
+    
+    batch_limits:
+      ohlc: 1000
+      open_interest: 200
+    incremental:
+      enabled: true
+      timeframes: ["5m"]
+    backfill:
+      enabled: true
+      timeframes: ["5m"]
+# Exchange-wide settings
+rest_rate_limit: 600
+websocket:
+  max_connections: 10
+  max_streams_per_connection: 200
+
+# Common settings for all market types
+supported_timeframes:
+  - "1m"
+  - "3m"
+  - "5m"
+  - "15m"
+  - "30m"
+  - "1h"
+  - "2h"
+  - "4h"
+  - "6h"
+  - "12h"
+  - "1d"
+  - "1w"
+
+retry:
+  max_retries: 5
+  delay: 2.0

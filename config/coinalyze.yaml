@@ -1,0 +1,5 @@
+coinalyze:
+  base_url: "https://api.coinalyze.net/v1"
+  api_keys: ["API_KEY"]
+  rate_limit: 60
+  request_interval: 1.0

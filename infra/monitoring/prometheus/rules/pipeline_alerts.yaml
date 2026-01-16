@@ -1,0 +1,11 @@
+groups:
+- name: pipeline.rules
+  rules:
+
+  - alert: ExecutionFailuresHigh
+    expr: increase(quant_execution_errors_total[5m]) > 5
+    for: 2m
+    labels:
+      severity: high
+    annotations:
+      summary: "Execution error rate increased"

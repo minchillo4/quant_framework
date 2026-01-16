@@ -1,0 +1,34 @@
+# config/global.yaml
+---
+# Global defaults for all environments and data sources
+log_level: "INFO"
+log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Retry configuration
+retry:
+  max_retries: 3
+  delay: 2.0
+  backoff_factor: 2.0
+
+# Circuit breaker configuration
+circuit_breaker:
+  failure_threshold: 5
+  reset_timeout: 300
+  half_open_max_requests: 3
+
+# Rate limiting defaults
+rate_limiting:
+  default_rpm: 1200
+  burst_capacity: 50
+  safety_factor: 0.8
+
+# Data quality standards
+data_quality:
+  price_tolerance: 0.01
+  volume_tolerance: 0.05
+  max_gap_minutes: 120
+
+# Monitoring
+monitoring:
+  metrics_port: 8000
+  health_check_interval: 30

@@ -1,0 +1,7 @@
+# Dev overrides: Small scale, mocks, verbose
+ccxt_mock: true  # Use CCXT sandbox/mocks
+log_level: DEBUG
+universe_override: dev_universe.yaml  # Small symbol list
+max_concurrent: 4  # Low for local
+rate_limits_strict: false  # Relaxed
+execution_mode: paper  # Default to simulation

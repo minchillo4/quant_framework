@@ -1,0 +1,9 @@
+# config/infra/database.yaml
+---
+# TimescaleDB configuration - use asyncpg-compatible format
+url: "postgresql://postgres:devpassword@timescaledb:5432/quant_dev"
+pool_size: 20
+max_overflow: 10
+pool_timeout: 30
+statement_timeout: 30000
+batch_size: 500
