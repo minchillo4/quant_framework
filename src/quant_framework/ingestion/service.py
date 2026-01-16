@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from quant_framework.ingestion.factories.adapter_factory import AdapterFactory
-from quant_framework.ingestion.factories.preprocessor_factory import PreprocessorFactory
+from quant_framework.common.factories import AdapterFactory, PreprocessorFactory
 from quant_framework.ingestion.models.enums import DataProvider
 from quant_framework.ingestion.orchestration.data_fetcher import DataFetchOrchestrator
 from quant_framework.shared.models.instruments import Instrument

@@ -105,12 +105,16 @@ async def execute_backfill(
     """
     from infra.airflow.dags.common.bronze_writer import BronzeWriter
     from quant_framework.infrastructure.database.ports import DatabaseAdapter
-    from quant_framework.ingestion.backfill.checkpoint_manager import (
+    from quant_framework.ingestion.orchestration.backfill.checkpoint_manager import (
         CheckpointManager,
         DatabaseCheckpointStore,
     )
-    from quant_framework.ingestion.backfill.coordinator import BackfillRequest
-    from quant_framework.ingestion.backfill.rate_limiter import CoinAlyzeRateLimiter
+    from quant_framework.ingestion.orchestration.backfill.coordinator import (
+        BackfillRequest,
+    )
+    from quant_framework.ingestion.orchestration.backfill.rate_limiter import (
+        CoinAlyzeRateLimiter,
+    )
     from quant_framework.legacy import Database
 
     logger.info(f"🚀 Starting backfill: {symbols} x {timeframes} x {data_types}")

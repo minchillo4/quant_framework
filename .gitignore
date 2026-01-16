@@ -45,3 +45,9 @@ Thumbs.db
 # =========================
 sql_commands.txt
 config/*.yaml
+.env
+.env.dev
+.env.prod
+.env.staging
+*.egg-info/
+repomix-output.xml

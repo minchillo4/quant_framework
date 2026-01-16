@@ -13,7 +13,7 @@ from quant_framework.ingestion.adapters.coinalyze_plugin.ohlcv_adapter import (
 from quant_framework.ingestion.adapters.coinalyze_plugin.open_interest_adapter import (
     CoinalyzeOpenInterestAdapter,
 )
-from quant_framework.ingestion.backfill.rate_limiter import IRateLimiter
+from quant_framework.ingestion.orchestration.backfill.rate_limiter import IRateLimiter
 from quant_framework.shared.models.instruments import Instrument
 
 logger = logging.getLogger(__name__)

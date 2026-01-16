@@ -13,6 +13,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
+# Add this after apt-get install and before USER airflow:
+
+# Create directories with proper permissions
+RUN mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins && \
+    chown -R airflow:0 /opt/airflow/logs && \
+    chmod -R 775 /opt/airflow/logs
+
+# Continue with USER airflow
+
 # Switch to airflow user for Python package installation
 USER airflow
 

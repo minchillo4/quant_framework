@@ -16,14 +16,13 @@ services:
       - ./infra/airflow/dags:/opt/airflow/dags:rw
       - ./infra/airflow/plugins:/opt/airflow/plugins:rw
       - ./config:/app/config:ro
-      - ./src/quant_framework:/opt/airflow/src/quant_framework:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
     environment:
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=10  # Faster DAG discovery in dev
       - AIRFLOW__CORE__DAG_DISCOVERY_SAFE_MODE=false  # Faster startup
-      - PYTHONPATH=/app/config:/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app  # UPDATED
+      - PYTHONPATH=/opt/airflow/src
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
 
@@ -35,15 +34,13 @@ services:
       - ./src:/opt/airflow/src:ro
       - ./infra/airflow/dags:/opt/airflow/dags:rw
       - ./infra/airflow/plugins:/opt/airflow/plugins:rw
-      - ./config:/app/config:ro
-      - ./src/quant_framework:/opt/airflow/src/quant_framework:ro
       - ./config:/app/config:ro  # ADD THIS LINE
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
     environment:
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=10
-      - PYTHONPATH=/app/config:/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app  # UPDATED
+      - PYTHONPATH=/opt/airflow/src # UPDATED
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
 
@@ -55,13 +52,11 @@ services:
       - ./src:/opt/airflow/src:ro
       - ./infra/airflow/dags:/opt/airflow/dags:rw
       - ./infra/airflow/plugins:/opt/airflow/plugins:rw
-      - ./config:/app/config:ro  # ADD THIS LINE
       - ./config:/app/config:ro
-      - ./src/quant_framework:/opt/airflow/src/quant_framework:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
     environment:
-      - PYTHONPATH=/app/config:/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app  # UPDATED
+      - PYTHONPATH=/opt/airflow/src
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
 
@@ -71,14 +66,13 @@ services:
       dockerfile: infra/airflow/Dockerfile.dev
     volumes:
       - ./src:/opt/airflow/src:ro
-      - ./src/quant_framework:/opt/airflow/src/quant_framework:ro
       - ./infra/airflow/dags:/opt/airflow/dags:rw
       - ./config:/app/config:ro  # ADD THIS LINE
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      - PYTHONPATH=/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app
+      - PYTHONPATH=/opt/airflow/src
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
     entrypoint: ["/bin/bash","-lc"]
@@ -107,7 +101,7 @@ services:
       - ./conftest.py:/app/conftest.py:ro
       - ./pytest.ini:/app/pytest.ini:ro
     environment:
-      - PYTHONPATH=/app/src:/app
+      - PYTHONPATH=/app/src
       - CONFIG_PATH=/app/config
       - LOG_LEVEL=DEBUG
       - MNEMO_ENV=dev
@@ -125,3 +119,4 @@ services:
       - CONFIG_PATH=/app/config
       - LOG_LEVEL=DEBUG
       - MNEMO_ENV=dev
+    command: uv run uvicorn mnemo_quant_api.main:app --host 0.0.0.0 --port 8000 --reload

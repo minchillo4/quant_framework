@@ -476,7 +476,7 @@ def fetch_and_write_historical_data(
                 end_dt = end_date
 
             # Step 2: Load rate limiting config from backfill.yaml
-            from quant_framework.ingestion.backfill.rate_limiter import (
+            from quant_framework.ingestion.orchestration.backfill.rate_limiter import (
                 CoinAlyzeRateLimiter,
             )
 

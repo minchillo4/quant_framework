@@ -1,0 +1,19 @@
+---
+startDelaySeconds: 0
+hostPort: kafka:9999
+username: 
+password: 
+jmxUrl: service:jmx:rmi:///jndi/rmi://kafka:9999/jmxrmi
+ssl: false
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+whitelistObjectNames:
+  - "kafka.server:type=BrokerTopicMetrics,name=*"
+  - "kafka.server:type=ReplicaManager,name=*"
+  - "kafka.controller:type=KafkaController,name=*"
+  - "kafka.network:type=RequestMetrics,name=*"
+  - "java.lang:type=GarbageCollector,name=*"
+  - "java.lang:type=Memory"
+blacklistObjectNames: []
+rules:
+  - pattern: ".*"

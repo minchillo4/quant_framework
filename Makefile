@@ -90,7 +90,7 @@ restart: stop start  ## Restart containers
 # =====================================================================
 validate-bronze:  ## Validate bronze sources configuration
 	@echo "Validating bronze configuration..."
-	@BRONZE_VALIDATE_ONLY=1 bash src/quant_framework/infrastructure/minio/init_bronze.sh
+	@BRONZE_VALIDATE_ONLY=1 bash docker/storage/init_bronze.sh
 
 generate-dags:  ## Generate Airflow DAGs from configuration
 	@echo "Generating DAGs..."

@@ -1,5 +1,30 @@
 """CheckpointCoordinator for OI pipelines.
 
+ARCHITECTURE NOTE: Checkpoint Strategy
+=====================================
+
+This module implements MINIO-BACKED checkpoints for incremental streaming pipelines.
+This is separate from database-backed checkpoints in ingestion.orchestration.backfill:
+
+1. **MinIO-Backed Checkpoints (THIS MODULE)**
+   - Location: MinIO S3-compatible storage (JSON documents)
+   - Used by: CCXT incremental pipelines (1h, 5m data) for real-time streaming
+   - Granularity: Per (source, exchange, symbol, timeframe, market_type)
+   - Storage: Lightweight, optimistic concurrency via ETags
+   - Metadata: last_successful_timestamp, total_records, minimal fields
+   - Purpose: Atomic checkpoint updates for incremental streaming pipelines
+   - Responsibilities: Load, bootstrap from backfill, validate cross-source lags, update
+
+2. **Database-Backed Checkpoints (ingestion.orchestration.backfill)**
+   - Location: PostgreSQL system.backfill_checkpoints table
+   - Used by: BackfillCoordinator for historical data backfills
+   - Granularity: Per (symbol, timeframe, data_type, source)
+   - Storage: Full checkpoint history with status tracking
+   - Purpose: Resumable backfill orchestration with detailed progress
+
+Use MinIO approach for incremental streaming (this module).
+Use database approach for batch backfills (ingestion.orchestration.backfill).
+
 Responsibilities:
 - Load checkpoints from MinIO using consistent paths
 - Bootstrap CCXT incremental checkpoints from Coinalyze backfill with a safe overlap

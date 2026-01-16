@@ -1,69 +1,17 @@
-FROM apache/airflow:2.9.2-python3.11
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
-USER root
+WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    liblz4-dev \
-    liblz4-1 \
-    curl \
-    netcat-openbsd \
-    vim \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Switch to airflow user for Python package installation
-USER airflow
+COPY pyproject.toml uv.lock* ./
 
-# Install additional Python packages as airflow user
-RUN pip install --no-cache-dir \
-    ccxt \
-    asyncpg \
-    sqlalchemy \
-    psycopg2-binary \
-    redis \
-    pandas \
-    numpy \
-    pyyaml \
-    python-dotenv \
-    requests \
-    httpx \
-    lz4 \
-    cramjam \
-    pyarrow \
-    pendulum \
-    boto3 \
-    python-dateutil
+# DON'T install the project, just dependencies
+RUN uv sync --dev --frozen --no-install-project
 
-# Copy and install quant_framework package
-COPY --chown=airflow:root ./src/quant_framework /opt/airflow/src/quant_framework
+# Explicitly install uvicorn system-wide
+RUN uv pip install --system "uvicorn[standard]==0.30.6"
 
-# Check if quant_framework has a setup.py and install it
-RUN if [ -f /opt/airflow/src/quant_framework/setup.py ]; then \
-        pip install -e /opt/airflow/src/quant_framework; \
-    else \
-        echo "quant_framework doesn't have setup.py, adding to PYTHONPATH"; \
-        echo "/opt/airflow/src/quant_framework" >> /home/airflow/.local/lib/python3.11/site-packages/quant_framework.pth; \
-    fi
-
-# Switch back to root to create /app/config directory
-USER root
-RUN mkdir -p /app/config && chmod 755 /app/config
-
-# Switch back to airflow user
-USER airflow
-
-# Add /app/config to Python path for when volumes aren't mounted
-RUN echo "/app/config" > /home/airflow/.local/lib/python3.11/site-packages/config.pth
-
-# Set CONFIG_PATH for consistency
-ENV CONFIG_PATH=/app/config
-
-
-# Copy entrypoint script
-COPY --chown=airflow:root infra/airflow/scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-# Add quant_framework to PYTHONPATH in the container
-ENV PYTHONPATH="/opt/airflow/src/quant_framework:${PYTHONPATH}"
+CMD ["uv", "run", "python"]

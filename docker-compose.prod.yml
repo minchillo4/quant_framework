@@ -129,3 +129,12 @@ services:
       --appendonly yes
       --appendfsync everysec
 
+# Note: In production, consider:
+# 1. Using external managed services (RDS, ElastiCache, etc.)
+# 2. Setting up proper backup strategies
+# 3. Configuring SSL/TLS for all connections
+# 4. Using secrets management (e.g., AWS Secrets Manager, Vault)
+# 5. Setting internal: true in networks for security
+# 6. Adding resource limits to all services
+# 7. Implementing proper monitoring and alerting
+# 8. Using CeleryExecutor with worker pools for Airflow

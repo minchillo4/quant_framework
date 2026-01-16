@@ -35,7 +35,7 @@ services:
       AIRFLOW_EMAIL: ${AIRFLOW_EMAIL:-admin@example.com}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     user: "50000:0"
     entrypoint: ["/bin/bash","-lc"]
@@ -58,7 +58,7 @@ services:
       PYTHONPATH: "/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     ports:
       - "8080:8080"
@@ -89,7 +89,7 @@ services:
       PYTHONPATH: "/opt/airflow/src:/opt/airflow:/opt/airflow/dags:/app"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/airflow/logs:/opt/airflow/logs
+      - airflow-logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     user: "50000:0"
     depends_on:
@@ -327,6 +327,7 @@ services:
   # Storage Services
   # ============================================================================
 
+# Replace the minio-init section with this:
   minio:
     image: quay.io/minio/minio
     container_name: minio
@@ -345,13 +346,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
-
+      
   minio-init:
-    image: alpine:latest
+    image: minio/mc:latest
     container_name: minio-init
-    env_file:
-      - .env.${MNEMO_ENV:-dev}
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
@@ -361,16 +359,10 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./src/quant_framework/infrastructure/minio/init_bronze.sh:/init.sh:ro
-      - ./config:/app/config:ro
-    command: |
-      sh -c "
-      apk add --no-cache bash minio-client curl python3 py3-pip &&
-      pip3 install --no-cache-dir pyyaml &&
-      ln -sf /usr/bin/mc /usr/local/bin/mc &&
-      bash /init.sh
-      "
+      - ./docker/storage/init_bronze.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
     restart: "no"
+
 
 # ============================================================================
 # Volumes
