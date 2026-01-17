@@ -15,11 +15,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from airflow.decorators import task
+
 from monitoring.bronze_metrics import (
     BRONZE_FILES_WRITTEN,
     BRONZE_FRESHNESS,
 )
-
 from quant_framework.infrastructure.checkpoint import (
     CheckpointDocument,
     CheckpointPathBuilder,

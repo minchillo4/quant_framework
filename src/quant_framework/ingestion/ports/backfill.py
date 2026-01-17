@@ -8,7 +8,7 @@ Separates orchestration logic from execution concerns:
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from quant_framework.shared.models.instruments import Instrument
 

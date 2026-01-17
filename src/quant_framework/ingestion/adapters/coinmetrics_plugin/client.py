@@ -1,10 +1,8 @@
 import asyncio
 import logging
-from datetime import datetime
 from typing import Any
 
 import aiohttp
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -55,43 +53,12 @@ class CoinMetricsClient:
         data = await self._make_request("catalog/assets")
         return [asset["asset"] for asset in data.get("data", [])]
 
-    async def get_metric_timeseries(
-        self,
-        asset: str,
-        metrics: list[str],
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int = 100,
-    ) -> pd.DataFrame:
-        """Get timeseries metrics for an asset."""
-        params = {
-            "assets": asset,
-            "metrics": ",".join(metrics),
-            "limit": min(limit, 10000),  # API max
-        }
-
-        if start_time:
-            params["start_time"] = start_time.isoformat()
-        if end_time:
-            params["end_time"] = end_time.isoformat()
-
-        data = await self._make_request("timeseries/asset-metrics", params)
-
-        # Convert to DataFrame
-        df = pd.DataFrame(data.get("data", []))
-        if not df.empty:
-            df["time"] = pd.to_datetime(df["time"])
-            df = df.set_index("time")
-
-        return df
-
-    async def get_available_metrics(self, asset: str) -> list[str]:
-        """Get available metrics for an asset."""
-        data = await self._make_request(f"catalog/asset-metrics/{asset}")
-        return [metric["metric"] for metric in data.get("data", [])]
-
 
 # CSV-based client for GitHub archives
+import csv
+import io
+
+
 class CoinMetricsCSVClient:
     """Client for Coin Metrics CSV archives from GitHub."""
 
@@ -100,17 +67,31 @@ class CoinMetricsCSVClient:
         base_url: str = "https://raw.githubusercontent.com/coinmetrics/data/master/csv",
     ):
         self.base_url = base_url
+        self.session = None
 
-    async def get_csv_data(self, symbol: str) -> pd.DataFrame:
-        """Get CSV data for a symbol."""
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+
+    async def get_csv_data(self, symbol: str) -> list[dict]:
+        """Get CSV data without using pandas."""
+        if not self.session:
+            raise RuntimeError("Session not initialized")
+
         url = f"{self.base_url}/{symbol}.csv"
 
-        # Use pandas to read CSV directly from URL
-        df = pd.read_csv(url)
+        async with self.session.get(url) as response:
+            if response.status != 200:
+                raise Exception(f"Failed to fetch CSV: {response.status}")
 
-        # Convert time column to datetime if present
-        if "time" in df.columns:
-            df["time"] = pd.to_datetime(df["time"])
-            df = df.set_index("time")
+            text = await response.text()
 
-        return df
+            # Parse CSV
+            csv_reader = csv.DictReader(io.StringIO(text))
+            data = list(csv_reader)
+
+            return data

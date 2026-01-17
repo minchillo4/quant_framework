@@ -41,3 +41,15 @@ class OpenInterestPort(Protocol):
         limit: int | None = None,
     ) -> Iterable[dict[str, Any]]:
         """Fetch raw open interest snapshots for the given instrument."""
+
+
+class OnChainDataPort(Protocol):
+    """Simple port following existing pattern."""
+
+    async def fetch_onchain_history(
+        self, asset: str, start_date: datetime, end_date: datetime
+    ) -> dict:
+        """
+        Returns: {"csv_path": "minio/path", "metadata": {...}}
+        Follows same pattern as other adapters.
+        """
