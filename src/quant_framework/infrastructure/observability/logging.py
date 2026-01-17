@@ -16,12 +16,9 @@ Log Structure:
 Architectural Layers:
     - infrastructure: Cross-cutting (database, storage, config, checkpoints)
     - ingestion: Data acquisition (CCXT, Coinalyze, validators)
-    - pipeline: Orchestration (Airflow DAGs, schedulers)
-    - processing: Data transformation & validation
-    - storage: Data persistence layer (if separate from infrastructure)
-    - api: REST API services
-    - strategy: Trading strategies (future)
-    - backtest: Strategy backtesting (future)
+    - orchestration: Workflow orchestration (Airflow DAGs, schedulers)
+    - transformation: Data transformation, validation & normalization
+    - storage: Data persistence layer
 """
 
 import logging
@@ -33,7 +30,7 @@ from structlog.types import EventDict
 
 # Define valid architectural layers
 Layer = Literal[
-    "infrastructure", "ingestion", "pipeline", "processing", "storage", "api"
+    "infrastructure", "ingestion", "orchestration", "storage", "transformation"
 ]
 
 
@@ -147,7 +144,7 @@ def get_logger(
 
     Args:
         name: Logger name (typically __name__ of the calling module)
-        layer: Architectural layer (infrastructure, ingestion, pipeline, etc.)
+        layer: Architectural layer (infrastructure, ingestion, orchestration, etc.)
         component: Specific component/service within the layer
         **initial_context: Additional context key-value pairs to bind to logger
 
@@ -246,13 +243,13 @@ def get_ingestion_logger(
     )
 
 
-def get_pipeline_logger(
+def get_orchestration_logger(
     component: str = "airflow-dag",
     dag_id: str | None = None,
     **context: Any,
 ) -> structlog.stdlib.BoundLogger:
     """
-    Get a logger for pipeline/orchestration layer (Airflow DAGs, schedulers).
+    Get a logger for orchestration layer (Airflow DAGs, schedulers).
 
     Args:
         component: Component name (default: "airflow-dag")
@@ -260,7 +257,7 @@ def get_pipeline_logger(
         **context: Additional context (task_id, execution_date, etc.)
 
     Usage:
-        >>> log = get_pipeline_logger(dag_id="ccxt_backfill", task_id="fetch_binance")
+        >>> log = get_orchestration_logger(dag_id="ccxt_backfill", task_id="fetch_binance")
         >>> log.info("task_started")
     """
     ctx = {}
@@ -269,31 +266,31 @@ def get_pipeline_logger(
     ctx.update(context)
 
     return get_logger(
-        "pipeline",
-        layer="pipeline",
+        "orchestration",
+        layer="orchestration",  # ← CORRIGIDO
         component=component,
         **ctx,
     )
 
 
-def get_processing_logger(
+def get_transformation_logger(
     component: str,
     **context: Any,
 ) -> structlog.stdlib.BoundLogger:
     """
-    Get a logger for processing layer (data transformation, validation, normalization).
+    Get a logger for transformation layer (data transformation, validation, normalization).
 
     Args:
         component: Component name (e.g., "validator", "normalizer", "aggregator")
         **context: Additional context
 
     Usage:
-        >>> log = get_processing_logger("validator", validation_type="cross_source")
+        >>> log = get_transformation_logger("validator", validation_type="cross_source")
         >>> log.info("validation_started")
     """
     return get_logger(
-        "processing",
-        layer="processing",
+        "transformation",
+        layer="transformation",
         component=component,
         **context,
     )
@@ -304,7 +301,7 @@ def get_storage_logger(
     **context: Any,
 ) -> structlog.stdlib.BoundLogger:
     """
-    Get a logger for storage layer (if separate from infrastructure).
+    Get a logger for storage layer.
 
     Args:
         component: Component name (e.g., "timescale-writer", "minio-archiver")
@@ -322,30 +319,11 @@ def get_storage_logger(
     )
 
 
-def get_api_logger(
-    component: str = "fastapi",
-    **context: Any,
-) -> structlog.stdlib.BoundLogger:
-    """
-    Get a logger for API layer (REST API services).
-
-    Args:
-        component: Component name (default: "fastapi")
-        **context: Additional context
-
-    Usage:
-        >>> log = get_api_logger()
-        >>> log.info("request_received", method="GET", path="/health")
-    """
-    return get_logger(
-        "api",
-        layer="api",
-        component=component,
-        **context,
-    )
+# ============================================================================
+# Convenience Aliases
+# ============================================================================
 
 
-# Alias for backward compatibility
 def get_database_logger(**context: Any) -> structlog.stdlib.BoundLogger:
     """
     Convenience alias for database logging (maps to infrastructure layer).
@@ -355,3 +333,17 @@ def get_database_logger(**context: Any) -> structlog.stdlib.BoundLogger:
         >>> log.info("query_executed", duration_ms=123)
     """
     return get_infrastructure_logger("database-adapter", **context)
+
+
+# Backward compatibility alias
+def get_processing_logger(
+    component: str, **context: Any
+) -> structlog.stdlib.BoundLogger:
+    """
+    Alias for get_transformation_logger (for backward compatibility).
+
+    Usage:
+        >>> log = get_processing_logger("validator")
+        >>> log.info("validation_completed")
+    """
+    return get_transformation_logger(component, **context)
