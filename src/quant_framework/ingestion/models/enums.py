@@ -44,6 +44,9 @@ class DataProvider(str, Enum):
     INTERNAL = "internal"  # Internal data generation
     FILE = "file"  # File-based data
 
+    # Onchain
+    COINMETRICS = "coinmetrics"
+
 
 class ClientType(str, Enum):
     """

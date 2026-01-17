@@ -100,6 +100,7 @@ class MarketDataType(str, enum.Enum):
     ORDERBOOK = "orderbook"
     TRADES = "trades"
     TICKER = "ticker"
+    ONCHAIN = "onchain"
 
 
 # ============================================================================
