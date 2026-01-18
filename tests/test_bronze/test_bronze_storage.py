@@ -590,7 +590,7 @@ class TestFileMetadata:
             symbol="BTC",
         )
 
-        dict_repr = metadata.dict()
+        dict_repr = metadata.model_dump()
 
         assert dict_repr["file_key"] == "binance/ohlcv/BTC/2026-01-18/data.json"
         assert dict_repr["file_size_bytes"] == 1024

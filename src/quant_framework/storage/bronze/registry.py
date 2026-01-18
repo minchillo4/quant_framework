@@ -160,8 +160,10 @@ class BronzeRegistry:
         return {
             "success": True,
             "file_result": result,
-            "file_metadata": file_metadata.dict(),
+            "file_metadata": file_metadata.model_dump(),
             "checkpoint": checkpoint_result,
-            "instrument": request.instrument.dict() if request.instrument else None,
+            "instrument": request.instrument.model_dump()
+            if request.instrument
+            else None,
             "ingestion_id": request.ingestion_id,
         }

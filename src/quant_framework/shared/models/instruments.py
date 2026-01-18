@@ -4,7 +4,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from quant_framework.shared.models.enums import (
     AssetClass,
@@ -20,6 +26,8 @@ class Instrument(BaseModel):
 
     Pydantic version provides robust validation and automatic field calculation.
     """
+
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     # ========== CORE IDENTIFIERS (Required) ==========
     instrument_id: str = Field(..., description="Unique identifier")
@@ -60,35 +68,33 @@ class Instrument(BaseModel):
 
     # ==================== VALIDATORS ====================
 
-    @validator("raw_symbol", pre=True, always=True)
-    def set_raw_symbol(cls, v, values):
+    @field_validator("raw_symbol", mode="before")
+    @classmethod
+    def set_raw_symbol(cls, v, info):
         """Set raw_symbol to instrument_id if not provided"""
         if not v:
-            return values.get("instrument_id", "")
+            return info.data.get("instrument_id", "")
         return v
 
-    @validator("metadata", pre=True, always=True)
+    @field_validator("metadata", mode="before")
+    @classmethod
     def set_metadata(cls, v):
         """Initialize metadata as empty dict if None"""
         return v or {}
 
-    @root_validator(skip_on_failure=True)
-    def calculate_settlement_currency(cls, values):
+    @model_validator(mode="after")
+    def calculate_settlement_currency(self):
         """Auto-calculate settlement currency based on contract type"""
-        settlement = values.get("settlement_currency")
+        settlement = self.settlement_currency
 
         # Only calculate if settlement_currency is None
         if settlement is None:
-            is_inverse = values.get("is_inverse", False)
-            base_asset = values.get("base_asset")
-            quote_asset = values.get("quote_asset")
-
-            if is_inverse:
-                values["settlement_currency"] = base_asset
+            if self.is_inverse:
+                self.settlement_currency = self.base_asset
             else:
-                values["settlement_currency"] = quote_asset
+                self.settlement_currency = self.quote_asset
 
-        return values
+        return self
 
     # ==================== PROPERTIES ====================
 
@@ -131,18 +137,12 @@ class Instrument(BaseModel):
     # ==================== SERIALIZATION ====================
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary (Pydantic does this natively)"""
-        return self.dict(by_alias=True)
+        """Convert to dictionary (Pydantic v2 method)"""
+        return self.model_dump(by_alias=True)
 
     def to_json(self) -> str:
         """Convert to JSON string"""
-        return self.json(by_alias=True, indent=2)
-
-    class Config:
-        """Pydantic configuration"""
-
-        validate_assignment = True  # Re-validate on attribute change
-        arbitrary_types_allowed = True  # Allow Decimal, datetime
+        return self.model_dump_json(by_alias=True, indent=2)
 
 
 # ==================== TESTING ====================

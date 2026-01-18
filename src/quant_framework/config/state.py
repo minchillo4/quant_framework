@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +25,20 @@ logger = logging.getLogger(__name__)
 class AssetConfig(BaseModel):
     """Asset universe configuration."""
 
+    model_config = ConfigDict(extra="allow")
+
     full_universe: list[str] = Field(default_factory=lambda: ["BTC", "ETH"])
     timeframes: list[str] = Field(
         default_factory=lambda: ["5m", "15m", "1h", "4h", "1d"]
     )
 
-    class Config:
-        extra = "allow"
-
 
 class AssetsConfig(BaseModel):
     """Assets section configuration."""
 
-    crypto: AssetConfig = Field(default_factory=AssetConfig)
+    model_config = ConfigDict(extra="allow")
 
-    class Config:
-        extra = "allow"
+    crypto: AssetConfig = Field(default_factory=AssetConfig)
 
 
 class DatabaseConfig(BaseModel):
@@ -53,6 +51,8 @@ class DatabaseConfig(BaseModel):
     statement_timeout: int = Field(default=30000, ge=1000)
     batch_size: int = Field(default=500, ge=1)
 
+    model_config = ConfigDict(extra="allow")
+
     @field_validator("url")
     @classmethod
     def validate_url(cls, v: str) -> str:
@@ -61,63 +61,55 @@ class DatabaseConfig(BaseModel):
             return v
         raise ValueError("Database URL must start with postgresql://")
 
-    class Config:
-        extra = "allow"
-
 
 class CoinalyzeConfig(BaseModel):
     """CoinAlyze API configuration."""
+
+    model_config = ConfigDict(extra="allow")
 
     base_url: str = Field(default="https://api.coinalyze.net/v1")
     api_keys: list[str] = Field(default_factory=list)
     rate_limit: int = Field(default=60, ge=1)
     request_interval: float = Field(default=1.0, ge=0.1)
 
-    class Config:
-        extra = "allow"
-
 
 class RedisConfig(BaseModel):
     """Redis connection configuration."""
 
-    redis_url: str = Field(default="redis://redis:6379/0")
+    model_config = ConfigDict(extra="allow")
 
-    class Config:
-        extra = "allow"
+    redis_url: str = Field(default="redis://redis:6379/0")
 
 
 class EndpointSupportConfig(BaseModel):
     """Which data endpoints are supported."""
+
+    model_config = ConfigDict(extra="allow")
 
     ohlc: bool = Field(default=True)
     open_interest: bool = Field(default=True)
     funding_rate: bool = Field(default=False)
     liquidation: bool = Field(default=False)
 
-    class Config:
-        extra = "allow"
-
 
 class BatchLimitConfig(BaseModel):
     """Batch size limits per endpoint."""
 
+    model_config = ConfigDict(extra="allow")
+
     ohlc: int = Field(default=1000, ge=1)
     open_interest: int = Field(default=500, ge=1)
-
-    class Config:
-        extra = "allow"
 
 
 class ValidationConfig(BaseModel):
     """Data validation settings."""
 
+    model_config = ConfigDict(extra="allow")
+
     require_open_interest: bool = Field(default=False)
     require_funding_rate: bool = Field(default=False)
     price_precision: int = Field(default=8, ge=0)
     volume_precision: int = Field(default=8, ge=0)
-
-    class Config:
-        extra = "allow"
 
 
 class MarketTypeConfig(BaseModel):
@@ -135,8 +127,7 @@ class MarketTypeConfig(BaseModel):
         default_factory=EndpointSupportConfig
     )
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ExchangeMarketConfig(BaseModel):
@@ -161,18 +152,16 @@ class ExchangeMarketConfig(BaseModel):
     ws_max_connections: int | None = Field(default=None)
     ws_max_streams_per_connection: int | None = Field(default=None)
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class LoggingConfig(BaseModel):
     """Logging configuration."""
 
+    model_config = ConfigDict(extra="allow")
+
     level: str = Field(default="INFO")
     format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-    class Config:
-        extra = "allow"
 
 
 class ConfigState(BaseModel):
@@ -196,8 +185,7 @@ class ConfigState(BaseModel):
     env: str = Field(default="dev")
     config_dir: str = Field(default="/app/config")
 
-    class Config:
-        extra = "allow"  # Allow additional fields from YAML
+    model_config = ConfigDict(extra="allow")  # Allow additional fields from YAML
 
 
 # =============================================================================

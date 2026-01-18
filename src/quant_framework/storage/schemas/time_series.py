@@ -15,7 +15,7 @@ All models use:
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class OHLCVRecord(BaseModel):
@@ -61,13 +61,19 @@ class OHLCVRecord(BaseModel):
         None, description="Number of trades in this period (optional)"
     )
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {
-            Decimal: str,
-            datetime: lambda v: v.isoformat(),
-        }
+    @field_serializer(
+        "open_price", "high_price", "low_price", "close_price", "volume", "quote_volume"
+    )
+    def serialize_decimal(self, value: Decimal | None) -> str | None:
+        """Serialize Decimal fields to strings for JSON compatibility."""
+        return str(value) if value is not None else None
+
+    @field_serializer("timestamp")
+    def serialize_datetime(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class TradeRecord(BaseModel):
@@ -97,13 +103,17 @@ class TradeRecord(BaseModel):
         None, description="Whether buyer was the maker (optional)"
     )
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {
-            Decimal: str,
-            datetime: lambda v: v.isoformat(),
-        }
+    @field_serializer("price", "quantity", "quote_amount")
+    def serialize_decimal(self, value: Decimal | None) -> str | None:
+        """Serialize Decimal fields to strings for JSON compatibility."""
+        return str(value) if value is not None else None
+
+    @field_serializer("timestamp")
+    def serialize_datetime(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()
 
 
 class OpenInterestRecord(BaseModel):
@@ -143,10 +153,16 @@ class OpenInterestRecord(BaseModel):
         None, decimal_places=4, description="Long/Short ratio (optional)"
     )
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {
-            Decimal: str,
-            datetime: lambda v: v.isoformat(),
-        }
+    @field_serializer(
+        "open_interest_usd", "long_oi_usd", "short_oi_usd", "long_short_ratio"
+    )
+    def serialize_decimal(self, value: Decimal | None) -> str | None:
+        """Serialize Decimal fields to strings for JSON compatibility."""
+        return str(value) if value is not None else None
+
+    @field_serializer("timestamp")
+    def serialize_datetime(self, value: datetime) -> str:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat()

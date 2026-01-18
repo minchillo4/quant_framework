@@ -2,9 +2,9 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from quant_framework.shared.models.enums import AssetClass, DataVenue, MarketDataType
+from quant_framework.shared.models.enums import DataVenue, MarketDataType
 from quant_framework.shared.models.instruments import Instrument
 
 
@@ -55,17 +55,21 @@ class BronzeCheckpoint(BaseModel):
         default="active", description="Status: active, paused, failed, completed"
     )
 
-    class Config:
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
-            DataVenue: lambda dv: dv.value,
-            MarketDataType: lambda mdt: mdt.value,
-            AssetClass: lambda ac: ac.value,
-        }
+    model_config = ConfigDict()
+
+    @field_serializer(
+        "last_data_timestamp", "checkpoint_created_at", "checkpoint_updated_at"
+    )
+    def _serialize_dt(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("source", "data_type")
+    def _serialize_enums(self, value) -> str:
+        return value.value
 
     def to_minio_dict(self) -> dict[str, Any]:
         """Converte para dict compatível com MinIO (JSON serializable)"""
-        data = self.dict()
+        data = self.model_dump()
 
         # Converte enums para strings
         data["source"] = self.source.value
@@ -73,7 +77,7 @@ class BronzeCheckpoint(BaseModel):
 
         # Converte instrumento se existir
         if self.instrument:
-            data["instrument"] = self.instrument.dict()
+            data["instrument"] = self.instrument.model_dump()
 
         # Converte timestamps para ISO string
         data["last_data_timestamp"] = self.last_data_timestamp.isoformat()

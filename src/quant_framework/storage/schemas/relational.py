@@ -11,7 +11,7 @@ across time-series tables and enable efficient joins.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class Exchange(BaseModel):
@@ -45,12 +45,12 @@ class Exchange(BaseModel):
     created_at: datetime | None = Field(None, description="Record creation timestamp")
     updated_at: datetime | None = Field(None, description="Record update timestamp")
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None,
-        }
+    @field_serializer("created_at", "updated_at")
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat() if value else None
 
 
 class Instrument(BaseModel):
@@ -98,12 +98,12 @@ class Instrument(BaseModel):
     created_at: datetime | None = Field(None, description="Record creation timestamp")
     updated_at: datetime | None = Field(None, description="Record update timestamp")
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None,
-        }
+    @field_serializer("created_at", "updated_at")
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat() if value else None
 
 
 class Market(BaseModel):
@@ -152,9 +152,9 @@ class Market(BaseModel):
     created_at: datetime | None = Field(None, description="Record creation timestamp")
     updated_at: datetime | None = Field(None, description="Record update timestamp")
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None,
-        }
+    @field_serializer("created_at", "updated_at")
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        """Serialize datetime to ISO format string."""
+        return value.isoformat() if value else None
