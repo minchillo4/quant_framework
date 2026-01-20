@@ -8,6 +8,17 @@ Uses CheckpointStore/CheckpointCoordinator for unified checkpoint paths
 that work with both backfill and incremental DAGs.
 """
 
+# Ensure DAG root is on sys.path for absolute imports - MUST BE FIRST
+import os
+import sys
+
+try:
+    _dags_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _dags_root not in sys.path:
+        sys.path.insert(0, _dags_root)
+except Exception:
+    pass
+
 import asyncio
 import logging
 from collections import defaultdict
@@ -16,19 +27,31 @@ from typing import Any
 
 from airflow.decorators import task
 
+# Legacy bronze writer - will be migrated to storage.bronze.registry
+from common.bronze_writer import BronzeWriter
+
 from monitoring.bronze_metrics import (
     BRONZE_FILES_WRITTEN,
     BRONZE_FRESHNESS,
 )
-from quant_framework.infrastructure.checkpoint import (
+from quant_framework.infrastructure.checkpoint.store import (
     CheckpointDocument,
-    CheckpointPathBuilder,
     CheckpointStore,
 )
 from quant_framework.infrastructure.impls.system import SystemClock
 from quant_framework.infrastructure.ports.system import IClock
 from quant_framework.ingestion.adapters.coinalyze_plugin.backfill_adapter import (
     CoinalyzeBackfillAdapter,
+)
+
+# ✅ NOVO IMPORT ADICIONADO
+from quant_framework.ingestion.adapters.coinalyze_plugin.dependency_container import (
+    CoinalyzeDependencyContainer,
+)
+
+# CoinAlyze-specific rate limiter (per-candle limiting)
+from quant_framework.ingestion.adapters.coinalyze_plugin.rate_limiter import (
+    AdaptiveRateLimiter,
 )
 from quant_framework.shared.models.enums import (
     AssetClass,
@@ -37,15 +60,6 @@ from quant_framework.shared.models.enums import (
     WrapperImplementation,
 )
 from quant_framework.shared.models.instruments import Instrument
-
-try:
-    # Try absolute import first (when imported from DAG context)
-    from common.bronze_writer import BronzeWriter
-    from common.rate_limiter import AdaptiveRateLimiter
-except ImportError:
-    # Fall back to relative import (when imported as package)
-    from .bronze_writer import BronzeWriter
-    from .rate_limiter import AdaptiveRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -78,16 +92,22 @@ def discover_historical_start_date(
     """
     Cold-start discovery: use checkpoint if present, else conservative default.
 
-    Uses unified CheckpointStore/CheckpointCoordinator paths.
+    Uses unified orchestration checkpoint interface.
     """
-    clock = clock or SystemClock()
-    store = CheckpointStore()
-    key = CheckpointPathBuilder.coinalyze_backfill(data_type, symbol, timeframe)
-    cp, _ = store.read(key)
 
-    if cp and cp.last_successful_timestamp:
+    clock = clock or SystemClock()
+    checkpoint_store = CheckpointStore()
+
+    async def _load_checkpoint():
+        return await checkpoint_store.load_checkpoint(
+            symbol, timeframe, data_type, "coinalyze"
+        )
+
+    cp = asyncio.run(_load_checkpoint())
+
+    if cp and cp.get("last_timestamp"):
         # Convert milliseconds to ISO string
-        ts_sec = cp.last_successful_timestamp / 1000
+        ts_sec = cp["last_timestamp"] / 1000
         start_dt = datetime.fromtimestamp(ts_sec, tz=UTC)
         return {
             "symbol": symbol,
@@ -148,29 +168,37 @@ def fetch_and_write_historical_data(
 ) -> dict[str, Any]:
     """
     Fetch historical data and write to bronze with daily Parquet files.
-    Uses CheckpointStore for unified paths and adaptive rate limiting.
+    Uses unified orchestration checkpoint interface for resumable backfill.
     Checkpoint saved after each daily write for resumable backfill.
     """
-    clock = clock or SystemClock()
-    store = CheckpointStore()
-    key = CheckpointPathBuilder.coinalyze_backfill(data_type, symbol, timeframe)
-    cp_doc, cp_etag = store.read(key)
 
-    # Convert checkpoint document to dict for backward compatibility
-    if cp_doc:
-        cp = {
-            "status": "active",
-            "last_successful_timestamp": cp_doc.last_successful_timestamp,
-            "files_written": cp_doc.total_records,  # using total_records as proxy
-            "metadata": cp_doc.metadata or {},
-        }
-    else:
-        cp = {}
+    clock = clock or SystemClock()
+    checkpoint_store = CheckpointStore()
+
+    # Initialize checkpoint variables for low-level operations
+    store = checkpoint_store
+    key = f"_checkpoints/coinalyze/{data_type}/{symbol}_{timeframe}.json"
+
+    async def _load_checkpoint():
+        doc, etag = store.read(key)
+        if not doc:
+            return None, None
+        # Convert CheckpointDocument to dict format expected by code
+        return {
+            "last_timestamp": doc.last_successful_timestamp,
+            "total_records": doc.total_records,
+            "consecutive_failures": doc.metadata.get("consecutive_failures", 0),
+            "last_error": doc.metadata.get("last_error"),
+            "status": doc.metadata.get("status", "in_progress"),
+            "metadata": doc.metadata,
+        }, etag
+
+    cp, cp_etag = asyncio.run(_load_checkpoint())
 
     # Determine start/end
-    if cp.get("last_successful_timestamp"):
+    if cp and cp.get("last_timestamp"):
         try:
-            ts_sec = cp["last_successful_timestamp"] / 1000
+            ts_sec = cp["last_timestamp"] / 1000
             current_start = datetime.fromtimestamp(ts_sec, tz=UTC)
         except Exception:
             current_start = _default_start_date(timeframe, clock)
@@ -197,11 +225,11 @@ def fetch_and_write_historical_data(
     )
     writer = BronzeWriter()
 
-    files_written = cp.get("files_written", 0)
+    files_written = cp.get("total_records", 0) if cp else 0
     total_records_written = 0
 
-    # Persist adaptive stats inputs in checkpoint metadata
-    cp.setdefault("metadata", {})
+    # Initialize checkpoint metadata if not exists
+    metadata = cp.get("metadata", {}) if cp else {}
 
     try:
         while current_start < end_dt:

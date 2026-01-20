@@ -12,7 +12,10 @@ class RawBronzeWriter:
 
     def __init__(self, minio_client):
         self.minio_client = minio_client
-        self.bucket_name = "bronze"
+        # Allow bucket override via env for flexibility
+        import os
+
+        self.bucket_name = os.getenv("MINIO_BUCKET_NAME", "bronze")
 
     async def write_raw(
         self,

@@ -166,9 +166,8 @@ Reusable task functions (TaskFlow API compatible):
 
 Checkpoint storage implementations:
 
-- **MinIOCheckpointStore**: File-based checkpoints in MinIO/S3
-- **DatabaseCheckpointStore**: PostgreSQL-backed checkpoints
-- **HybridCheckpointStore**: Dual storage (file + database)
+- **MinIOCheckpointStore**: File-based checkpoints in MinIO/S3 (recommended for all use cases)
+- Supports both streaming and backfill checkpoint tracking
 
 ## Design Patterns
 
@@ -250,13 +249,17 @@ dag = (BackfillDagBuilder("backfill_btc")
 
 ```python
 from quant_framework.orchestration.workflows import BackfillWorkflow
-from quant_framework.orchestration.checkpoint import DatabaseCheckpointStore
+from quant_framework.ingestion.backfill import CheckpointManager, MinIOCheckpointStore
+
+# Create checkpoint manager with MinIO storage
+checkpoint_store = MinIOCheckpointStore()
+checkpoint_manager = CheckpointManager(checkpoint_store)
 
 # Create workflow
 workflow = BackfillWorkflow(
     adapter=coinalyze_adapter,
     writer=bronze_writer,
-    checkpoint_store=DatabaseCheckpointStore(db),
+    checkpoint_store=checkpoint_manager,
     chunk_strategy=AdaptiveChunkStrategy(),
     rate_limiter=CoinalyzeRateLimiter(),
 )
@@ -317,41 +320,21 @@ else:
 
 ## Migration from Phase 3
 
-### Old Structure (Ingestion Layer)
-
-```python
-# Before: Orchestration logic in ingestion
-from quant_framework.ingestion.orchestration.backfill.coordinator import BackfillCoordinator
-
-coordinator = BackfillCoordinator(
-    adapter=adapter,
-    checkpoint_manager=checkpoint_manager,
-    # ...
-)
-```
-
 ### New Structure (Orchestration Layer)
 
 ```python
-# After: Orchestration logic in orchestration layer
+# Orchestration logic in orchestration layer
 from quant_framework.orchestration.workflows import BackfillWorkflow
-from quant_framework.orchestration.checkpoint import DatabaseCheckpointStore
+from quant_framework.ingestion.backfill import CheckpointManager, MinIOCheckpointStore
+
+checkpoint_store = MinIOCheckpointStore()
+checkpoint_manager = CheckpointManager(checkpoint_store)
 
 workflow = BackfillWorkflow(
     adapter=adapter,
-    checkpoint_store=DatabaseCheckpointStore(db),
+    checkpoint_store=checkpoint_manager,
     # ...
 )
-```
-
-### Backward Compatibility
-
-Old imports still work with deprecation warnings:
-
-```python
-# Deprecated but functional
-from quant_framework.ingestion.orchestration.backfill.coordinator import BackfillCoordinator
-# DeprecationWarning: Moved to quant_framework.orchestration.workflows.BackfillWorkflow
 ```
 
 ## Testing Strategy

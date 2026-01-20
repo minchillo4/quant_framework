@@ -3,6 +3,17 @@ Historical Data Initialization DAG
 Runs once on service initialization to populate bronze layer with historical data.
 """
 
+# Ensure DAG root is on sys.path for absolute imports - MUST BE FIRST
+import os
+import sys
+
+try:
+    _dags_root = os.path.dirname(os.path.abspath(__file__))
+    if _dags_root not in sys.path:
+        sys.path.insert(0, _dags_root)
+except Exception:
+    pass
+
 from datetime import datetime, timedelta
 
 from airflow import DAG

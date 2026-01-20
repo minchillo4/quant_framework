@@ -1,14 +1,72 @@
 # src/quant_framework/storage/bronze/bronze_tasks.py
+import asyncio
+import logging
 from datetime import datetime
 from typing import Any
 
 from airflow.decorators import task
 
 from quant_framework.shared.models.enums import DataVenue, MarketDataType
+from quant_framework.shared.models.instruments import Instrument
 from quant_framework.storage.bronze.registry import (
     BronzeIngestionRequest,
     BronzeRegistry,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def group_by_day(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Group records by UTC day using `timestamp` key (ms int or datetime)."""
+    from datetime import UTC
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        ts = record.get("timestamp")
+        if ts is None:
+            continue
+        if isinstance(ts, (int, float)):
+            dt = datetime.fromtimestamp(ts / 1000, tz=UTC)
+        elif isinstance(ts, datetime):
+            dt = ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+        else:
+            continue
+
+        key = dt.strftime("%Y%m%d")
+        grouped.setdefault(key, []).append(record)
+    return grouped
+
+
+@task
+def write_bronze_raw(
+    source: DataVenue,
+    data_type: MarketDataType,
+    symbol: str,
+    raw_payload: Any,
+    instrument: dict | None = None,
+    file_format: str = "raw_json",
+    compression: str = "none",
+    custom_metadata: dict[str, Any] | None = None,
+    create_checkpoint: bool = True,
+) -> dict[str, Any]:
+    """Airflow task: write raw payload to Bronze using the shared registry."""
+
+    async def _run():
+        registry = BronzeRegistry.get_default()
+        instrument_obj = Instrument(**instrument) if instrument else None
+        request = BronzeIngestionRequest(
+            source=source,
+            data_type=data_type,
+            instrument=instrument_obj,
+            raw_data=raw_payload,
+            file_format=file_format,
+            compression=compression,
+            custom_metadata=custom_metadata or {},
+            create_checkpoint=create_checkpoint,
+        )
+        return await registry.ingest_raw_data(request)
+
+    return asyncio.run(_run())
 
 
 @task
@@ -66,9 +124,6 @@ def ingest_coinmetrics_onchain(
         return {"results": results}
 
     # Executa async no Airflow
-    import asyncio
-
-    return asyncio.run(_ingest_async())
 
 
 @task

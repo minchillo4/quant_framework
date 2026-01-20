@@ -8,6 +8,17 @@ Implements:
 - Soft failure handling per symbol/timeframe
 """
 
+# Ensure DAG root is on sys.path for absolute imports - MUST BE FIRST
+import os
+import sys
+
+try:
+    _dags_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _dags_root not in sys.path:
+        sys.path.insert(0, _dags_root)
+except Exception:
+    pass
+
 import asyncio
 import json
 import logging
@@ -18,7 +29,6 @@ from airflow.decorators import task
 from airflow.exceptions import AirflowException
 from airflow.operators.python import get_current_context
 
-# CoinAlyze imports
 # Bronze writer import
 from common.bronze_writer import BronzeWriter
 
@@ -476,7 +486,7 @@ def fetch_and_write_historical_data(
                 end_dt = end_date
 
             # Step 2: Load rate limiting config from backfill.yaml
-            from quant_framework.ingestion.orchestration.backfill.rate_limiter import (
+            from quant_framework.ingestion.backfill.rate_limiter import (
                 CoinAlyzeRateLimiter,
             )
 

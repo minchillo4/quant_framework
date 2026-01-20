@@ -13,16 +13,27 @@ Architecture:
 - Trigger rule 'all_done' ensures validation runs even if some tasks fail
 
 DAG Structure:
-  load_symbols()
-    ↓
-  chain(BTC, ETH, XRP)  ← sequential
-    ↓
-  expand(timeframes)  ← parallel in pool='coinalyze_api' (5 slots)
-    ↓
-  [discover, fetch_and_write, validate_timeframe]
-    ↓
-  validate_backfill_completion (trigger_rule='all_done')
+    load_symbols()
+        ↓
+    chain(BTC, ETH, XRP)  ← sequential
+        ↓
+    expand(timeframes)  ← parallel in pool='coinalyze_api' (5 slots)
+        ↓
+    [discover, fetch_and_write, validate_timeframe]
+        ↓
+    validate_backfill_completion (trigger_rule='all_done')
 """
+
+# Ensure DAG root is on sys.path for absolute imports - MUST BE FIRST
+import os
+import sys
+
+try:
+    _dags_root = os.path.dirname(os.path.abspath(__file__))
+    if _dags_root not in sys.path:
+        sys.path.insert(0, _dags_root)
+except Exception:
+    pass
 
 from datetime import UTC, datetime, timedelta
 from typing import Any

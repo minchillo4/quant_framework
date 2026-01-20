@@ -47,6 +47,9 @@ class DataProvider(str, Enum):
     # Onchain
     COINMETRICS = "coinmetrics"
 
+    # Financial Data APIs
+    ALPHA_VANTAGE = "alpha_vantage"
+
 
 class ClientType(str, Enum):
     """

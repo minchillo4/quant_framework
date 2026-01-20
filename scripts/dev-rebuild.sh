@@ -11,7 +11,7 @@ export MNEMO_ENV=dev
 
 # Rebuild without cache
 echo "Building images without cache..."
-docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
+docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
 
 echo ""
 echo "✅ Images rebuilt successfully!"

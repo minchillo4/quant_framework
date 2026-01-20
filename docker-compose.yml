@@ -38,13 +38,7 @@ services:
       - airflow-logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
     user: "50000:0"
-    entrypoint: ["/bin/bash","-lc"]
-    command: >
-      bash -c "
-      airflow db migrate &&
-      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
-      airflow connections create-default-connections
-      "
+    command: init
     env_file:
       - .env.${MNEMO_ENV:-dev}
 

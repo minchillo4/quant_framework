@@ -1,5 +1,5 @@
 """
-Checkpoint manager for tracking backfill progress.
+Checkpoint manager for tracking backfill progress using MinIO storage.
 Enables resumable backfills and progress monitoring.
 """
 
@@ -8,12 +8,21 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from quant_framework.storage.repositories.checkpoint import (
+    BackfillCheckpointRecord,
+    CheckpointRepository,
+)
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class BackfillCheckpoint:
-    """Represents a backfill progress checkpoint."""
+    """Represents a backfill progress checkpoint.
+
+    This is the public API dataclass used by BackfillCoordinator.
+    Maps to BackfillCheckpointRecord for storage.
+    """
 
     symbol: str
     timeframe: str
@@ -27,134 +36,99 @@ class BackfillCheckpoint:
     status: str  # 'in_progress', 'completed', 'failed'
     error_message: str | None = None
 
+    def to_record(self) -> BackfillCheckpointRecord:
+        """Convert to storage record."""
+        # Convert datetime to milliseconds timestamp
+        timestamp_ms = int(self.last_completed_date.timestamp() * 1000)
+        if self.last_completed_date == datetime.min:
+            timestamp_ms = 0
+
+        return BackfillCheckpointRecord(
+            symbol=self.symbol,
+            timeframe=self.timeframe,
+            data_type=self.data_type,
+            source=self.source,
+            last_completed_timestamp=timestamp_ms,
+            total_chunks_completed=self.total_chunks_completed,
+            total_records_written=self.total_records_written,
+            started_at=self.started_at,
+            updated_at=self.updated_at,
+            status=self.status,
+            error_message=self.error_message,
+        )
+
+    @classmethod
+    def from_record(cls, record: BackfillCheckpointRecord) -> "BackfillCheckpoint":
+        """Create from storage record."""
+        return cls(
+            symbol=record.symbol,
+            timeframe=record.timeframe,
+            data_type=record.data_type,
+            source=record.source,
+            last_completed_date=record.last_completed_date,
+            total_chunks_completed=record.total_chunks_completed,
+            total_records_written=record.total_records_written,
+            started_at=record.started_at,
+            updated_at=record.updated_at,
+            status=record.status,
+            error_message=record.error_message,
+        )
+
 
 class ICheckpointStore(Protocol):
     """
     Protocol for checkpoint storage.
-    Enables different backend implementations (database, file, cache).
+    Now implemented by MinIO-backed CheckpointRepository.
     """
 
     async def save_checkpoint(self, checkpoint: BackfillCheckpoint) -> None:
-        """
-        Save or update checkpoint.
-
-        Args:
-            checkpoint: Checkpoint data to save
-        """
+        """Save or update checkpoint."""
         ...
 
     async def load_checkpoint(
         self, symbol: str, timeframe: str, data_type: str, source: str
     ) -> BackfillCheckpoint | None:
-        """
-        Load checkpoint for specific combination.
-
-        Args:
-            symbol: Trading symbol
-            timeframe: Data timeframe
-            data_type: Type of data ('ohlc', 'oi')
-            source: Data source name
-
-        Returns:
-            Checkpoint if exists, None otherwise
-        """
+        """Load checkpoint for specific combination."""
         ...
 
     async def list_checkpoints(
         self, status: str | None = None
     ) -> list[BackfillCheckpoint]:
-        """
-        List all checkpoints, optionally filtered by status.
-
-        Args:
-            status: Filter by status ('in_progress', 'completed', 'failed')
-
-        Returns:
-            List of checkpoints
-        """
+        """List all checkpoints, optionally filtered by status."""
         ...
 
     async def delete_checkpoint(
         self, symbol: str, timeframe: str, data_type: str, source: str
     ) -> bool:
-        """
-        Delete checkpoint.
-
-        Args:
-            symbol: Trading symbol
-            timeframe: Data timeframe
-            data_type: Type of data
-            source: Data source name
-
-        Returns:
-            True if deleted, False if not found
-        """
+        """Delete checkpoint."""
         ...
 
     async def mark_completed(
         self, symbol: str, timeframe: str, data_type: str, source: str
     ) -> None:
-        """
-        Mark backfill as completed.
-
-        Args:
-            symbol: Trading symbol
-            timeframe: Data timeframe
-            data_type: Type of data
-            source: Data source name
-        """
+        """Mark backfill as completed."""
         ...
 
 
-class DatabaseCheckpointStore:
+class MinIOCheckpointStore:
     """
-    Database-backed checkpoint storage.
-    Uses system.backfill_checkpoints table.
+    MinIO-backed checkpoint storage adapter.
+    Implements ICheckpointStore using CheckpointRepository.
     """
 
-    def __init__(self, db_adapter: "IDatabaseAdapter"):
+    def __init__(self, repository: CheckpointRepository | None = None):
         """
         Initialize checkpoint store.
 
         Args:
-            db_adapter: Database adapter instance
+            repository: CheckpointRepository instance (creates default if None)
         """
-        self.db = db_adapter
-        self.table = "system.backfill_checkpoints"
+        self.repo = repository or CheckpointRepository()
 
     async def save_checkpoint(self, checkpoint: BackfillCheckpoint) -> None:
-        """Save or update checkpoint in database."""
-        query = f"""
-            INSERT INTO {self.table} (
-                symbol, timeframe, data_type, source,
-                last_completed_date, total_chunks_completed, total_records_written,
-                started_at, updated_at, status, error_message
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (symbol, timeframe, data_type, source)
-            DO UPDATE SET
-                last_completed_date = EXCLUDED.last_completed_date,
-                total_chunks_completed = EXCLUDED.total_chunks_completed,
-                total_records_written = EXCLUDED.total_records_written,
-                updated_at = EXCLUDED.updated_at,
-                status = EXCLUDED.status,
-                error_message = EXCLUDED.error_message
-        """
-
-        await self.db.execute_query(
-            query,
-            checkpoint.symbol,
-            checkpoint.timeframe,
-            checkpoint.data_type,
-            checkpoint.source,
-            checkpoint.last_completed_date,
-            checkpoint.total_chunks_completed,
-            checkpoint.total_records_written,
-            checkpoint.started_at,
-            checkpoint.updated_at,
-            checkpoint.status,
-            checkpoint.error_message,
-        )
+        """Save or update checkpoint in MinIO."""
+        record = checkpoint.to_record()
+        await self.repo.upsert(record)
 
         logger.debug(
             f"Saved checkpoint: {checkpoint.symbol}/{checkpoint.timeframe}/{checkpoint.data_type} "
@@ -164,128 +138,60 @@ class DatabaseCheckpointStore:
     async def load_checkpoint(
         self, symbol: str, timeframe: str, data_type: str, source: str
     ) -> BackfillCheckpoint | None:
-        """Load checkpoint from database."""
-        query = f"""
-            SELECT 
-                symbol, timeframe, data_type, source,
-                last_completed_date, total_chunks_completed, total_records_written,
-                started_at, updated_at, status, error_message
-            FROM {self.table}
-            WHERE symbol = $1 
-              AND timeframe = $2 
-              AND data_type = $3 
-              AND source = $4
-        """
+        """Load checkpoint from MinIO."""
+        record = await self.repo.find_by_symbol_source(
+            symbol, timeframe, data_type, source
+        )
 
-        result = await self.db.fetch_one(query, symbol, timeframe, data_type, source)
-
-        if not result:
+        if not record:
             return None
 
-        return BackfillCheckpoint(
-            symbol=result["symbol"],
-            timeframe=result["timeframe"],
-            data_type=result["data_type"],
-            source=result["source"],
-            last_completed_date=result["last_completed_date"],
-            total_chunks_completed=result["total_chunks_completed"],
-            total_records_written=result["total_records_written"],
-            started_at=result["started_at"],
-            updated_at=result["updated_at"],
-            status=result["status"],
-            error_message=result.get("error_message"),
-        )
+        return BackfillCheckpoint.from_record(record)
 
     async def list_checkpoints(
         self, status: str | None = None
     ) -> list[BackfillCheckpoint]:
-        """List all checkpoints from database."""
-        if status:
-            query = f"""
-                SELECT 
-                    symbol, timeframe, data_type, source,
-                    last_completed_date, total_chunks_completed, total_records_written,
-                    started_at, updated_at, status, error_message
-                FROM {self.table}
-                WHERE status = $1
-                ORDER BY updated_at DESC
-            """
-            results = await self.db.fetch_all(query, status)
-        else:
-            query = f"""
-                SELECT 
-                    symbol, timeframe, data_type, source,
-                    last_completed_date, total_chunks_completed, total_records_written,
-                    started_at, updated_at, status, error_message
-                FROM {self.table}
-                ORDER BY updated_at DESC
-            """
-            results = await self.db.fetch_all(query)
-
-        return [
-            BackfillCheckpoint(
-                symbol=row["symbol"],
-                timeframe=row["timeframe"],
-                data_type=row["data_type"],
-                source=row["source"],
-                last_completed_date=row["last_completed_date"],
-                total_chunks_completed=row["total_chunks_completed"],
-                total_records_written=row["total_records_written"],
-                started_at=row["started_at"],
-                updated_at=row["updated_at"],
-                status=row["status"],
-                error_message=row.get("error_message"),
-            )
-            for row in results
-        ]
+        """List all checkpoints from MinIO."""
+        records = await self.repo.find_all(status=status)
+        return [BackfillCheckpoint.from_record(r) for r in records]
 
     async def delete_checkpoint(
         self, symbol: str, timeframe: str, data_type: str, source: str
     ) -> bool:
-        """Delete checkpoint from database."""
-        query = f"""
-            DELETE FROM {self.table}
-            WHERE symbol = $1 
-              AND timeframe = $2 
-              AND data_type = $3 
-              AND source = $4
-        """
-
-        await self.db.execute_query(query, symbol, timeframe, data_type, source)
-        logger.info(f"Deleted checkpoint: {symbol}/{timeframe}/{data_type}/{source}")
-        return True
+        """Delete checkpoint from MinIO."""
+        deleted = await self.repo.delete(symbol, timeframe, data_type, source)
+        if deleted:
+            logger.info(
+                f"Deleted checkpoint: {symbol}/{timeframe}/{data_type}/{source}"
+            )
+        return deleted
 
     async def mark_completed(
         self, symbol: str, timeframe: str, data_type: str, source: str
     ) -> None:
         """Mark backfill as completed."""
-        query = f"""
-            UPDATE {self.table}
-            SET status = 'completed',
-                updated_at = NOW()
-            WHERE symbol = $1 
-              AND timeframe = $2 
-              AND data_type = $3 
-              AND source = $4
-        """
-
-        await self.db.execute_query(query, symbol, timeframe, data_type, source)
-        logger.info(f"Marked completed: {symbol}/{timeframe}/{data_type}/{source}")
+        checkpoint = await self.load_checkpoint(symbol, timeframe, data_type, source)
+        if checkpoint:
+            checkpoint.status = "completed"
+            checkpoint.updated_at = datetime.utcnow()
+            await self.save_checkpoint(checkpoint)
+            logger.info(f"Marked completed: {symbol}/{timeframe}/{data_type}/{source}")
 
 
 class CheckpointManager:
     """
     High-level checkpoint management with automatic progress tracking.
+    Now uses MinIO storage instead of PostgreSQL.
     """
 
-    def __init__(self, checkpoint_store: ICheckpointStore):
+    def __init__(self, checkpoint_store: ICheckpointStore | None = None):
         """
         Initialize manager.
 
         Args:
-            checkpoint_store: Checkpoint storage backend
+            checkpoint_store: Checkpoint storage backend (defaults to MinIOCheckpointStore)
         """
-        self.store = checkpoint_store
+        self.store = checkpoint_store or MinIOCheckpointStore()
 
     async def start_backfill(
         self, symbol: str, timeframe: str, data_type: str, source: str

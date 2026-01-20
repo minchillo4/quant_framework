@@ -33,6 +33,16 @@ from quant_framework.ingestion.adapters.coinalyze_plugin.impls import (
     CoinAlyzeResponseValidator,
     CoinAlyzeRetryHandler,
 )
+from quant_framework.ingestion.backfill.checkpoint_manager import (
+    CheckpointManager,
+)
+from quant_framework.ingestion.backfill.chunk_generator import TimeRangeChunkGenerator
+from quant_framework.ingestion.backfill.chunk_processor import BackfillChunkProcessor
+from quant_framework.ingestion.backfill.dependency_container import (
+    BackfillDependencyContainer,
+)
+from quant_framework.ingestion.backfill.rate_limiter import IRateLimiter
+from quant_framework.ingestion.backfill.reporter import BackfillReporter
 from quant_framework.ingestion.config.value_objects import (
     BackfillConfig,
     CoinalyzeConfig,
@@ -41,20 +51,6 @@ from quant_framework.ingestion.config.value_objects import (
     ValidationConfig,
 )
 from quant_framework.ingestion.connectors.aiohttp_client import AiohttpClient
-from quant_framework.ingestion.orchestration.backfill.checkpoint_manager import (
-    CheckpointManager,
-)
-from quant_framework.ingestion.orchestration.backfill.chunk_generator import (
-    TimeRangeChunkGenerator,
-)
-from quant_framework.ingestion.orchestration.backfill.chunk_processor import (
-    BackfillChunkProcessor,
-)
-from quant_framework.ingestion.orchestration.backfill.dependency_container import (
-    BackfillDependencyContainer,
-)
-from quant_framework.ingestion.orchestration.backfill.rate_limiter import IRateLimiter
-from quant_framework.ingestion.orchestration.backfill.reporter import BackfillReporter
 from quant_framework.ingestion.ports.backfill import (
     IBackfillReporter,
     IChunkGenerator,
@@ -213,7 +209,7 @@ class IngestionDependencyContainer:
         Returns:
             BackfillCoordinator with all dependencies injected
         """
-        from quant_framework.ingestion.orchestration.backfill.coordinator import (
+        from quant_framework.ingestion.backfill.coordinator import (
             BackfillCoordinator,
         )
 

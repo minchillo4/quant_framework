@@ -63,3 +63,4 @@ RUN if [ -f /opt/airflow/src/quant_framework/setup.py ]; then \
 
 # Ensure PYTHONPATH includes quant_framework
 ENV PYTHONPATH="/opt/airflow/src/quant_framework:${PYTHONPATH}"
+ENTRYPOINT ["/entrypoint.sh"]

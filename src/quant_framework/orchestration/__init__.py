@@ -179,33 +179,35 @@ Migration Guide
 
 ### From Old Structure
 
-Before Phase 4:
+Before refactoring:
 ```python
 # In DAG file
 from infra.airflow.dags.common.bronze_tasks import discover_and_fetch
-from quant_framework.ingestion.orchestration.backfill.coordinator import BackfillCoordinator
 
-coordinator = BackfillCoordinator(...)
+# Backfill orchestration
+results = await coordinator.execute_backfill(request)
 ```
 
-After Phase 4:
+### New Structure
+
+After refactoring with MinIO checkpoints:
 ```python
 # In DAG file
 from quant_framework.orchestration.workflows import BackfillWorkflow
-from quant_framework.orchestration.operators import FetchOHLCVOperator
+from quant_framework.ingestion.backfill import CheckpointManager, MinIOCheckpointStore
 
-workflow = BackfillWorkflow(...)
-fetch_op = FetchOHLCVOperator(...)
+checkpoint_store = MinIOCheckpointStore()
+checkpoint_manager = CheckpointManager(checkpoint_store)
+
+# Backfill orchestration
+results = await coordinator.execute_backfill(request)
 ```
 
-### Backward Compatibility
+### Migration Checklist
 
-Old imports still work with deprecation warnings:
-```python
-# Still works but logs deprecation warning
-from quant_framework.ingestion.orchestration.backfill.coordinator import BackfillCoordinator
-# DeprecationWarning: Import from quant_framework.orchestration.workflows instead
-```
+✅ Replace old imports with new paths
+✅ Use MinIOCheckpointStore instead of DatabaseCheckpointStore
+✅ Update checkpoint initialization to use ingestion.backfill module
 
 Testing Strategy
 ----------------

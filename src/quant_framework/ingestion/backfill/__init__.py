@@ -3,8 +3,8 @@
 from .checkpoint_manager import (
     BackfillCheckpoint,
     CheckpointManager,
-    DatabaseCheckpointStore,
     ICheckpointStore,
+    MinIOCheckpointStore,
 )
 from .coordinator import BackfillCoordinator, BackfillRequest, BackfillResult
 from .rate_limiter import CoinAlyzeRateLimiter, IRateLimiter
@@ -14,7 +14,7 @@ __all__ = [
     "CoinAlyzeRateLimiter",
     "ICheckpointStore",
     "BackfillCheckpoint",
-    "DatabaseCheckpointStore",
+    "MinIOCheckpointStore",
     "CheckpointManager",
     "BackfillCoordinator",
     "BackfillRequest",

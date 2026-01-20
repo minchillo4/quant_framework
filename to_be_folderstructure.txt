@@ -62,3 +62,67 @@ FUTURE DATASOURCES:
 - BIS (https://data.bis.org/topics/GLI)
 
 
+
+
+mnemo-quant/
+├── research/                  # [NOVO] Ambiente de exploração (Sandbox)
+│   ├── notebooks/            # Jupyter Notebooks
+│   │   ├── 01_exploratory/   # Análise de dados bruta (EDA)
+│   │   ├── 02_features/      # Prototipagem de features
+│   │   ├── 03_models/        # Testes rápidos de arquiteturas
+│   │   └── 04_backtests/     # Análises ad-hoc de estratégias
+│   └── reports/              # HTML/PDF exports de análises finais
+│
+├── mlruns/                    # [NOVO] Local artifact store do MLflow (ignorado no git)
+├── data/                      # [NOVO] Dados locais para dev/cache (ignorado no git)
+│   ├── raw/
+│   ├── processed/
+│   └── feature_store/        # Parquet files de features calculadas
+│
+├── src/quant_framework/       # [EXPANDIDO]
+│   ├── ... (ingestion, infrastructure mantidos)
+│   │
+│   ├── features/             # Lógica de Feature Engineering (Feature Store)
+│   │   ├── __init__.py
+│   │   ├── base.py           # Classes base para transformadores
+│   │   ├── generators/       # Lógica pura: (OHLCV -> Indicadores/Sinais)
+│   │   │   ├── momentum.py
+│   │   │   ├── volatility.py
+│   │   │   └── microstructure.py (ex: Order Flow Imbalance)
+│   │   ├── selectors.py      # Algoritmos de Feature Selection (RFE, Boruta, SHAP)
+│   │   └── pipeline.py       # Scikit-learn Pipelines (Imputers, Scalers)
+│   │
+│   ├── models/               # O "Cérebro": Machine Learning
+│   │   ├── __init__.py
+│   │   ├── registry.py       # Factory para instanciar modelos via string/config
+│   │   ├── training.py       # Lógica de loop de treino (fit, cross_val)
+│   │   ├── evaluation.py     # Métricas customizadas (Sharpe, Kelly, F1-Score)
+│   │   ├── architectures/    # Definição das classes dos modelos
+│   │   │   ├── lstm.py
+│   │   │   ├── xgboost_wrapper.py
+│   │   │   └── transformer.py
+│   │   └── tuning/           # Configs de Hyperopt/Optuna
+│   │
+│   ├── strategies/           # Lógica de Trading (Decisão)
+│   │   ├── __init__.py
+│   │   ├── base.py           # Classe abstrata (on_bar, on_tick)
+│   │   ├── rules/            # Lógica determinística (Risk management, Sizing)
+│   │   ├── signals/          # Conversores (Model Pred -> Buy/Sell Signal)
+│   │   └── zoo/              # Implementações concretas
+│   │       ├── ml_momentum.py
+│   │       ├── mean_reversion.py
+│   │       └── ensemble_strat.py
+│   │
+│   └── backtesting/          # Motor de Simulação
+│       ├── __init__.py
+│       ├── engine.py         # Wrapper (Backtrader/VectorBT/Custom)
+│       ├── metrics.py        # Tearsheets, Drawdown analysis
+│       └── optimization.py   # Walk-forward analysis logic
+│
+└── scripts/                   # [EXPANDIDO] Scripts operacionais de ML
+    ├── ml/
+    │   ├── train_model.py    # Script CLI para treinar (usa MLflow)
+    │   ├── evaluate_model.py # Validação out-of-sample
+    │   └── retrain.py        # Script para jobs agendados (Remodel)
+    └── trading/
+        └── run_backtest.py   # CLI para rodar backtests massivos

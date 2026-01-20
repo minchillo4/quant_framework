@@ -162,6 +162,7 @@ class DataVenue(str, enum.Enum):
     UNKNOWN = "unknown"  # Unknown source
 
     COINMETRICS = "coinmetrics"
+    ALPHA_VANTAGE = "alpha_vantage"  # Alpha Vantage API
 
 
 class WrapperImplementation(str, enum.Enum):

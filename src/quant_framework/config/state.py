@@ -73,6 +73,17 @@ class CoinalyzeConfig(BaseModel):
     request_interval: float = Field(default=1.0, ge=0.1)
 
 
+class AlphaVantageConfig(BaseModel):
+    """AlphaVantage API configuration."""
+
+    model_config = ConfigDict(extra="allow")
+
+    base_url: str = Field(default="https://www.alphavantage.co/query")
+    api_keys: list[str] = Field(default_factory=list)
+    rate_limit: int = Field(default=5, ge=1)  # AlphaVantage free tier limit
+    request_interval: float = Field(default=12.0, ge=0.1)  # 12 seconds between calls
+
+
 class RedisConfig(BaseModel):
     """Redis connection configuration."""
 
@@ -175,6 +186,7 @@ class ConfigState(BaseModel):
     assets: AssetsConfig = Field(default_factory=AssetsConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     coinalyze: CoinalyzeConfig = Field(default_factory=CoinalyzeConfig)
+    alpha_vantage: AlphaVantageConfig = Field(default_factory=AlphaVantageConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
@@ -245,6 +257,18 @@ class ConfigLoader:
             api_keys = [key.strip() for key in api_keys_str.split(",") if key.strip()]
             if api_keys:
                 config.setdefault("coinalyze", {})["api_keys"] = api_keys
+
+        # AlphaVantage API keys (support both singular and plural)
+        alpha_vantage_keys_str = os.getenv("ALPHA_VANTAGE_API_KEYS") or os.getenv(
+            "ALPHA_VANTAGE_API_KEY"
+        )
+        if alpha_vantage_keys_str:
+            # Split by comma and strip whitespace
+            api_keys = [
+                key.strip() for key in alpha_vantage_keys_str.split(",") if key.strip()
+            ]
+            if api_keys:
+                config.setdefault("alpha_vantage", {})["api_keys"] = api_keys
 
         # Log level
         if log_level := os.getenv("LOG_LEVEL"):
@@ -411,6 +435,7 @@ def get_config(config_dir: str | None = None) -> ConfigState:
 
 
 __all__ = [
+    "AlphaVantageConfig",
     "AssetConfig",
     "AssetsConfig",
     "BatchLimitConfig",

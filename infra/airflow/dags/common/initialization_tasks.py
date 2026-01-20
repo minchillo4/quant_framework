@@ -3,6 +3,17 @@ Airflow tasks for historical data initialization.
 Wires BackfillCoordinator with proper dependencies.
 """
 
+# Ensure DAG root is on sys.path for absolute imports - MUST BE FIRST
+import os
+import sys
+
+try:
+    _dags_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _dags_root not in sys.path:
+        sys.path.insert(0, _dags_root)
+except Exception:
+    pass
+
 import logging
 from datetime import datetime
 from typing import Any
@@ -103,91 +114,89 @@ async def execute_backfill(
     Returns:
         Summary of backfill results
     """
-    from infra.airflow.dags.common.bronze_writer import BronzeWriter
-    from quant_framework.infrastructure.database.ports import DatabaseAdapter
-    from quant_framework.ingestion.orchestration.backfill.checkpoint_manager import (
+    # Ensure DAG root is on sys.path for absolute imports
+    try:
+        _dags_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _dags_root not in sys.path:
+            sys.path.append(_dags_root)
+    except Exception:
+        pass
+
+    from common.bronze_writer import BronzeWriter
+
+    from quant_framework.ingestion.backfill.checkpoint_manager import (
         CheckpointManager,
-        DatabaseCheckpointStore,
+        MinIOCheckpointStore,
     )
-    from quant_framework.ingestion.orchestration.backfill.coordinator import (
+    from quant_framework.ingestion.backfill.coordinator import (
         BackfillRequest,
     )
-    from quant_framework.ingestion.orchestration.backfill.rate_limiter import (
+    from quant_framework.ingestion.backfill.rate_limiter import (
         CoinAlyzeRateLimiter,
     )
-    from quant_framework.legacy import Database
 
     logger.info(f"🚀 Starting backfill: {symbols} x {timeframes} x {data_types}")
 
-    # Initialize database
-    db = Database()
-    await db.connect()
+    # Wire up dependencies using master ingestion container
+    rate_limiter = CoinAlyzeRateLimiter(verbose=True)
+    checkpoint_store = MinIOCheckpointStore()
+    checkpoint_manager = CheckpointManager(checkpoint_store)
+    bronze_writer = BronzeWriter()
 
-    try:
-        # Wire up dependencies using master ingestion container
-        db_adapter = DatabaseAdapter(db)
-        rate_limiter = CoinAlyzeRateLimiter(verbose=True)
-        checkpoint_store = DatabaseCheckpointStore(db_adapter)
-        checkpoint_manager = CheckpointManager(checkpoint_store)
-        bronze_writer = BronzeWriter()
+    # Create master ingestion container (wires everything)
+    from quant_framework.ingestion.dependency_container import (
+        IngestionDependencyContainer,
+    )
 
-        # Create master ingestion container (wires everything)
-        from quant_framework.ingestion.dependency_container import (
-            IngestionDependencyContainer,
-        )
+    ingestion_container = IngestionDependencyContainer(
+        rate_limiter=rate_limiter,
+        checkpoint_manager=checkpoint_manager,
+        bronze_writer=bronze_writer,
+        verbose=True,
+    )
 
-        ingestion_container = IngestionDependencyContainer(
-            rate_limiter=rate_limiter,
-            checkpoint_manager=checkpoint_manager,
-            bronze_writer=bronze_writer,
-            verbose=True,
-        )
+    # Get fully wired coordinator
+    coordinator = ingestion_container.create_backfill_coordinator()
 
-        # Get fully wired coordinator
-        coordinator = ingestion_container.create_backfill_coordinator()
+    # Create backfill request
+    request = BackfillRequest(
+        symbols=symbols,
+        timeframes=timeframes,
+        data_types=data_types,
+        start_date=datetime.fromisoformat(start_date),
+        end_date=datetime.fromisoformat(end_date),
+        exchanges=exchanges or ["binance", "bybit", "okx", "deribit", "bitget"],
+    )
 
-        # Create backfill request
-        request = BackfillRequest(
-            symbols=symbols,
-            timeframes=timeframes,
-            data_types=data_types,
-            start_date=datetime.fromisoformat(start_date),
-            end_date=datetime.fromisoformat(end_date),
-            exchanges=exchanges or ["binance", "bybit", "okx", "deribit", "bitget"],
-        )
+    # Execute backfill
+    results = await coordinator.execute_backfill(request)
 
-        # Execute backfill
-        results = await coordinator.execute_backfill(request)
+    # Prepare summary
+    summary = {
+        "total_combinations": len(results),
+        "completed": sum(1 for r in results.values() if r.status == "completed"),
+        "partial": sum(1 for r in results.values() if r.status == "partial"),
+        "failed": sum(1 for r in results.values() if r.status == "failed"),
+        "total_records": sum(r.total_records for r in results.values()),
+        "total_duration_seconds": sum(r.duration_seconds for r in results.values()),
+        "results": {
+            key: {
+                "status": result.status,
+                "total_chunks": result.total_chunks,
+                "successful_chunks": result.successful_chunks,
+                "total_records": result.total_records,
+                "duration_seconds": result.duration_seconds,
+            }
+            for key, result in results.items()
+        },
+    }
 
-        # Prepare summary
-        summary = {
-            "total_combinations": len(results),
-            "completed": sum(1 for r in results.values() if r.status == "completed"),
-            "partial": sum(1 for r in results.values() if r.status == "partial"),
-            "failed": sum(1 for r in results.values() if r.status == "failed"),
-            "total_records": sum(r.total_records for r in results.values()),
-            "total_duration_seconds": sum(r.duration_seconds for r in results.values()),
-            "results": {
-                key: {
-                    "status": result.status,
-                    "total_chunks": result.total_chunks,
-                    "successful_chunks": result.successful_chunks,
-                    "total_records": result.total_records,
-                    "duration_seconds": result.duration_seconds,
-                }
-                for key, result in results.items()
-            },
-        }
+    logger.info(
+        f"✅ Backfill completed: {summary['completed']} succeeded, "
+        f"{summary['failed']} failed, {summary['total_records']:,} records"
+    )
 
-        logger.info(
-            f"✅ Backfill completed: {summary['completed']} succeeded, "
-            f"{summary['failed']} failed, {summary['total_records']:,} records"
-        )
-
-        return summary
-
-    finally:
-        await db.disconnect()
+    return summary
 
 
 @task
@@ -214,7 +223,7 @@ async def validate_bronze_data(
     """
     from datetime import datetime
 
-    from infra.airflow.dags.common.bronze_writer import BronzeWriter
+    from common.bronze_writer import BronzeWriter
 
     logger.info(f"🔍 Validating bronze data for {symbol}/{timeframe}/{data_type}")
 

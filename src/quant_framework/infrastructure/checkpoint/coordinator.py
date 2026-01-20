@@ -4,7 +4,7 @@ ARCHITECTURE NOTE: Checkpoint Strategy
 =====================================
 
 This module implements MINIO-BACKED checkpoints for incremental streaming pipelines.
-This is separate from database-backed checkpoints in ingestion.orchestration.backfill:
+Both streaming and backfill now use MinIO for checkpoint storage:
 
 1. **MinIO-Backed Checkpoints (THIS MODULE)**
    - Location: MinIO S3-compatible storage (JSON documents)
@@ -15,15 +15,14 @@ This is separate from database-backed checkpoints in ingestion.orchestration.bac
    - Purpose: Atomic checkpoint updates for incremental streaming pipelines
    - Responsibilities: Load, bootstrap from backfill, validate cross-source lags, update
 
-2. **Database-Backed Checkpoints (ingestion.orchestration.backfill)**
-   - Location: PostgreSQL system.backfill_checkpoints table
+2. **MinIO-Backed Checkpoints (Backfill)**
+   - Location: MinIO S3-compatible storage (JSON documents)
    - Used by: BackfillCoordinator for historical data backfills
    - Granularity: Per (symbol, timeframe, data_type, source)
-   - Storage: Full checkpoint history with status tracking
+   - Storage: MinIO JSON files alongside bronze data
    - Purpose: Resumable backfill orchestration with detailed progress
 
-Use MinIO approach for incremental streaming (this module).
-Use database approach for batch backfills (ingestion.orchestration.backfill).
+Both use MinIO approach for simplicity and data locality.
 
 Responsibilities:
 - Load checkpoints from MinIO using consistent paths

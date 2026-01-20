@@ -4,8 +4,6 @@ Backfill Workflow Implementation
 
 Coordinates historical data backfill operations with chunking, checkpointing,
 and rate limiting.
-
-Moved from: quant_framework.ingestion.orchestration.backfill.coordinator
 """
 
 import logging
@@ -92,8 +90,6 @@ class BackfillWorkflow(BaseWorkflow):
     - Coordinate checkpointing and error recovery
     - Apply rate limiting and floor dates
     - Delegate actual data fetching to adapters
-
-    This replaces BackfillCoordinator from ingestion.orchestration.backfill.
     """
 
     def __init__(

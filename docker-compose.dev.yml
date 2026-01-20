@@ -22,7 +22,7 @@ services:
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=10  # Faster DAG discovery in dev
       - AIRFLOW__CORE__DAG_DISCOVERY_SAFE_MODE=false  # Faster startup
-      - PYTHONPATH=/opt/airflow/src
+      - PYTHONPATH=/opt/airflow/dags:/opt/airflow/src
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
 
@@ -40,7 +40,7 @@ services:
     environment:
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=10
-      - PYTHONPATH=/opt/airflow/src # UPDATED
+      - PYTHONPATH=/opt/airflow/dags:/opt/airflow/src
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
 
@@ -56,32 +56,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - airflow-logs:/opt/airflow/logs
     environment:
-      - PYTHONPATH=/opt/airflow/src
+      - PYTHONPATH=/opt/airflow/dags:/opt/airflow/src
       - LOG_LEVEL=DEBUG
       - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
 
-  airflow-init:
-    build:
-      context: .
-      dockerfile: infra/airflow/Dockerfile.dev
-    volumes:
-      - ./src:/opt/airflow/src:ro
-      - ./infra/airflow/dags:/opt/airflow/dags:rw
-      - ./config:/app/config:ro  # ADD THIS LINE
-      - airflow-logs:/opt/airflow/logs
-      - ./infra/airflow/plugins:/opt/airflow/plugins:rw
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    environment:
-      - PYTHONPATH=/opt/airflow/src
-      - LOG_LEVEL=DEBUG
-      - COINALYZE_API_KEYS=${COINALYZE_API_KEYS}
-    entrypoint: ["/bin/bash","-lc"]
-    command: >
-      bash -c "
-      airflow db migrate &&
-      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
-      airflow connections create-default-connections
-      "
 
   # ============================================================================
   # Application Services - Development Overrides

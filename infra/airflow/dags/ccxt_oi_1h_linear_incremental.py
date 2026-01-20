@@ -179,8 +179,13 @@ def process_combo(combo: dict, config: dict) -> dict:
             from datetime import datetime as dt
 
             import ccxt
-            from common.bronze_tasks import _group_by_day
-            from common.bronze_writer import BronzeWriter
+
+            from quant_framework.shared.models.enums import MarketDataType
+            from quant_framework.storage.bronze.registry import (
+                BronzeIngestionRequest,
+                BronzeRegistry,
+            )
+            from quant_framework.storage.bronze.tasks import group_by_day
 
             exchange_name = combo["exchange"]
             market_type = combo["market_type"]
@@ -322,23 +327,28 @@ def process_combo(combo: dict, config: dict) -> dict:
                     f"📥 Fetched {len(data_dicts)} records from {exchange_name}"
                 )
 
-                # Group by day and write to MinIO
-                writer = BronzeWriter()
-                daily_batches = _group_by_day(data_dicts)
+                # Group by day and write to MinIO via shared BronzeRegistry
+                registry = BronzeRegistry.get_default()
+                daily_batches = group_by_day(data_dicts)
                 total_written = 0
 
                 for day_date, day_records in daily_batches.items():
                     try:
-                        # Convert date string (YYYYMMDD) to datetime object
                         date_obj = dt.strptime(day_date, "%Y%m%d").replace(tzinfo=UTC)
-
-                        await writer.write_daily_batch(
-                            records=day_records,
-                            symbol=canonical_symbol,
-                            timeframe="1h",
-                            date=date_obj,
-                            data_type="oi",
+                        request = BronzeIngestionRequest(
+                            source=venue,
+                            data_type=MarketDataType.OPEN_INTEREST,
+                            instrument=instrument,
+                            raw_data=day_records,
+                            file_format="raw_json",
+                            compression="none",
+                            custom_metadata={
+                                "exchange": exchange_name,
+                                "timeframe": "1h",
+                                "date": day_date,
+                            },
                         )
+                        await registry.ingest_raw_data(request)
                         total_written += len(day_records)
                         logger.info(
                             f"✅ Wrote {len(day_records)} records for {day_date}"
